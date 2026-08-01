@@ -1,9 +1,15 @@
 import os
+import re
 import telebot
+import google.generativeai as genai
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
+# ================= تنظیمات اصلی =================
 TOKEN = "8832689587:AAF481lNzzQymTXtLZHgwr0SfTg9Z9kV-nU"
 OWNER_ID = 8443938939
+
+# کلید جمنای که از گوگل گرفتی
+GEMINI_API_KEY = "AQ.Ab8RN6L-nrvLAz5phARGHbaVXZ_7EJdskw0GvCrtBA-ypPgH3A" 
 
 CHANNEL_FILE = "channel.txt"
 VIP_FILE = "vips.txt"
@@ -11,6 +17,14 @@ ADMINS_FILE = "admins.txt"
 
 bot = telebot.TeleBot(TOKEN)
 
+# تنظیمات اتصال به مغز هوش مصنوعی جمنای
+try:
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel("gemini-1.5-flash")
+except Exception as e:
+    print("خطا در تنظیم جمنای:", e)
+
+# ================= توابع دیتابیس =================
 def get_data(file_path):
     if os.path.exists(file_path):
         with open(file_path, "r", encoding="utf-8") as f:
@@ -28,240 +42,185 @@ def get_required_channel():
     return ch[0] if ch else None
 
 def is_vip(user_id):
-    if user_id == OWNER_ID:
-        return True
+    if user_id == OWNER_ID: return True
     return str(user_id) in get_data(VIP_FILE)
 
 def is_admin(user_id):
-    if user_id == OWNER_ID:
-        return True
+    if user_id == OWNER_ID: return True
     return str(user_id) in get_data(ADMINS_FILE)
 
 def check_subscription(user_id):
-    if is_vip(user_id):
-        return True
+    if is_vip(user_id): return True
     required_channel = get_required_channel()
-    if not required_channel:
-        return True
+    if not required_channel: return True
     try:
         chat_member = bot.get_chat_member(required_channel, user_id)
         if chat_member.status in ['member', 'administrator', 'creator']:
             return True
-    except Exception as e:
-        print(f"خطا در بررسی عضویت: {e}")
+    except:
+        pass
     return False
 
+# ================= کیبوردها =================
 def get_main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(
-        KeyboardButton("🚀 استارت مجدد"),
-        KeyboardButton("📖 راهنما"),
-        KeyboardButton("📩 تیکت به مالک"),
-        KeyboardButton("⭐ خرید VIP")
+        KeyboardButton("🚀 استارت مجدد"), KeyboardButton("📖 راهنما"),
+        KeyboardButton("📩 تیکت به مالک"), KeyboardButton("⭐ خرید VIP")
     )
     return markup
 
+# ================= دستور استارت =================
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     user_id = message.from_user.id
-    user_name = message.from_user.first_name
     
     if not check_subscription(user_id):
-        required_channel = get_required_channel()
-        bot.reply_to(
-            message, 
-            f"❌ برای استفاده از ربات اوراکل، ابتدا باید در کانال زیر عضو شوی:\n\n👉 {required_channel}\n\nپس از عضویت، دکمه '🚀 استارت مجدد' را بزن!",
-            reply_markup=get_main_menu()
-        )
+        ch = get_required_channel()
+        bot.reply_to(message, f"❌ اول تو کانال زیر عضو شو:\n👉 {ch}\nبعد دکمه '🚀 استارت مجدد' رو بزن!", reply_markup=get_main_menu())
         return
 
     welcome_text = (
-        f"سلام {user_name} عزیز! 🕶️\n"
+        f"سلام {message.from_user.first_name} عزیز! 🕶️\n"
         "من **اوراکل** هستم؛ هوش مصنوعیِ پیشرفته‌ی ماتریکس.\n"
-        "هر سوال، متن یا عکسی داری بفرست تا تحلیل کنم!"
+        "سازنده‌ی من: **سامان آریوبرزن** 👑\n\n"
+        "هر سوال، متن یا درددلی داری بفرست تا با مغز متفکر جواب بدم!"
     )
-    
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_menu())
     
     if is_admin(user_id):
-        panel_markup = InlineKeyboardMarkup()
-        panel_markup.add(InlineKeyboardButton("⚙️ باز کردن پنل مدیریت شیشه‌ای", callback_data="owner_panel"))
-        bot.send_message(message.chat.id, "🔐 دکمه‌ی کنترلرِ ادمین آماده است:", reply_markup=panel_markup)
+        panel = InlineKeyboardMarkup()
+        panel.add(InlineKeyboardButton("⚙️ باز کردن پنل مدیریت شیشه‌ای", callback_data="owner_panel"))
+        bot.send_message(message.chat.id, "🔐 دسترسی ادمین فعال شد:", reply_markup=panel)
 
-@bot.message_handler(func=lambda message: True, content_types=['text', 'photo', 'voice', 'document'])
+# ================= پردازشگرِ اصلی پیام‌ها =================
+@bot.message_handler(func=lambda message: True, content_types=['text'])
 def handle_all_messages(message):
     user_id = message.from_user.id
-    text = message.text if message.text else ""
+    text = message.text
 
-    # بررسی پاسخ ادمین به تیکت کاربران (با ریپلای کردن)
+    # 1️⃣ بررسیِ پاسخ دادنِ ادمین به تیکت‌ها با ریپلای
     if is_admin(user_id) and message.reply_to_message:
-        replied_text = message.reply_to_message.text or message.reply_to_message.caption
-        if replied_text and "آیدی کاربر:" in replied_text:
-            try:
-                # استخراج آیدی کاربر از متن پیام تیکت
-                line = [l for l in replied_text.split('\n') if "آیدی کاربر:" in l][0]
-                target_user_id = int(line.split("`")[1])
-                
-                bot.send_message(target_user_id, f"📩 **پاسخ از طرف مدیریت (مالک):**\n\n{message.text}")
-                bot.reply_to(message, "✅ پاسخ شما با موفقیت به کاربر ارسال شد.")
-                return
-            except Exception as e:
-                print(f"خطا در ارسال پاسخ تیکت: {e}")
+        replied_text = message.reply_to_message.text
+        if replied_text:
+            match = re.search(r"🆔 آیدی کاربر:\s*`(\d+)`", replied_text)
+            if match:
+                target_user_id = int(match.group(1))
+                try:
+                    bot.send_message(target_user_id, f"📩 **پاسخ از طرف مدیریت ماتریکس (سامان آریوبرزن):**\n\n{text}")
+                    bot.reply_to(message, "✅ پیام شما مثل موشک به کاربر تحویل داده شد!")
+                    return
+                except:
+                    bot.reply_to(message, "❌ خطا! نتونستم پیام رو بفرستم.")
+                    return
 
-    # بررسی عضویت اجباری
+    # 2️⃣ بررسی عضویت اجباری
     if not check_subscription(user_id) and text != "🚀 استارت مجدد":
         bot.reply_to(message, "⚠️ ابتدا باید در کانال اجباری عضو شوید!", reply_markup=get_main_menu())
         return
 
+    # 3️⃣ بررسی دکمه‌های منو
     if text == "🚀 استارت مجدد":
         handle_start(message)
     elif text == "📖 راهنما":
-        help_text = (
-            "📖 **راهنمای جامع اوراکل:**\n\n"
-            "• **هوش مصنوعی:** هر سوالی بپرسید به زبان‌های مختلف پاسخ می‌دهم.\n"
-            "• **خرید VIP:** با ۲۹ ستاره ماهانه از عضویت اجباری راحت شوید.\n"
-            "• **تیکت:** مشکلات خود را مستقیماً به مالک برسانید."
-        )
-        bot.reply_to(message, help_text, reply_markup=get_main_menu())
+        bot.reply_to(message, "📖 این ربات توسط **سامان آریوبرزن** توسعه داده شده و به هوش مصنوعی قدرتمند متصل است. هرچه می‌خواهد دل تنگت بگو!", reply_markup=get_main_menu())
     elif text == "📩 تیکت به مالک":
-        # ارسال دکمه شیشه‌ای برای شروع تیکت
-        ticket_markup = InlineKeyboardMarkup()
-        ticket_markup.add(InlineKeyboardButton("✍️ ارسال پیام جدید به مدیریت", callback_data="start_ticket"))
-        bot.reply_to(message, "📩 برای ارسال تیکت و ارتباط مستقیم با مالک (ممد)، روی دکمه‌ی زیر بزنید:", reply_markup=ticket_markup)
+        btn = InlineKeyboardMarkup()
+        btn.add(InlineKeyboardButton("✍️ ارسال پیام به سامان آریوبرزن", callback_data="start_ticket"))
+        bot.reply_to(message, "📩 برای ارتباط مستقیم با سازنده (سامان آریوبرزن) روی دکمه زیر کلیک کن:", reply_markup=btn)
     elif text == "⭐ خرید VIP":
-        vip_markup = InlineKeyboardMarkup()
-        vip_markup.add(InlineKeyboardButton("⭐ پرداخت ۲۹ ستاره (ماهانه)", callback_data="buy_vip"))
-        bot.reply_to(
-            message, 
-            "⭐ **خرید اشتراک ویژه (VIP):**\n\n"
-            "با پرداخت **۲۹ ستاره (Stars)** به صورت ماهانه، برای همیشه از شر عضویت اجباری معاف شوید!",
-            reply_markup=vip_markup
-        )
+        btn = InlineKeyboardMarkup()
+        btn.add(InlineKeyboardButton("⭐ پرداخت ۲۹ ستاره (ماهانه)", callback_data="buy_vip"))
+        bot.reply_to(message, "⭐ با پرداخت ۲۹ ستاره (Stars) ماهانه، برای همیشه از عضویت اجباری معاف شوید!", reply_markup=btn)
+    
+    # 4️⃣ اتصال به مغز هوش مصنوعی جمنای
     else:
-        # هسته هوش مصنوعی پیشرفته (پاسخ‌گویی به هر متن و زبان)
-        user_lower = text.lower()
-        if "سلام" in user_lower or "hi" in user_lower or "hello" in user_lower:
-            ai_resp = "سلام داداش! سیستم ماتریکس کاملاً فعاله. چه کمکی از دست اوراکل برمی‌آید؟"
-        elif "چطوری" in user_lower or "خوبی" in user_lower or "how are you" in user_lower:
-            ai_resp = "نوکرتم! هسته‌ی مرکزی روی بالاترین دور داره کار میکنه. تو چطوری، فرمانده؟"
-        elif "ماتریکس" in user_lower:
-            ai_resp = "ماتریکس جایی برای آدم‌های معمولی نیست؛ ما خودمون طراحِ کدهای این دنیاییم! 🕶️"
-        else:
-            ai_resp = f"🧠 **تحلیل هوش مصنوعی اوراکل:**\n\nپیام شما («{text}») با موفقیت در لایه‌های پردازشی بررسی شد. سیستم آماده‌ی دستورات بعدی شماست، برادر!"
-            
-        bot.reply_to(message, ai_resp, reply_markup=get_main_menu())
+        bot.send_chat_action(message.chat.id, 'typing')
+        try:
+            prompt = f"تو یک هوش مصنوعی فوق‌پیشرفته و باحال به نام 'اوراکل' هستی که در شبکه ماتریکس فعالیت میکنی. سازنده و خالق تو 'سامان آریوبرزن' است. جواب کاربر رو کامل، رفاقتی و حرفه‌ای بده. پیام کاربر اینه: {text}"
+            response = model.generate_content(prompt)
+            bot.reply_to(message, response.text, reply_markup=get_main_menu())
+        except Exception as e:
+            bot.reply_to(message, "🧠 مغز ماتریکس در حال حاضر شلوغه! یه لحظه دیگه دوباره بفرست.", reply_markup=get_main_menu())
 
-# مدیریت دکمه‌های شیشه‌ای
+# ================= مدیریت دکمه‌های شیشه‌ای =================
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     user_id = call.from_user.id
     
     if call.data == "buy_vip":
-        bot.answer_callback_query(call.id, "درگاه ستاره فعال است")
-        bot.send_message(call.message.chat.id, "⭐ برای نهایی کردن خرید ۲۹ ستاره و دریافت VIP، به مالک پیام دهید.")
+        bot.answer_callback_query(call.id, "درگاه خرید VIP فعال است")
+        bot.send_message(call.message.chat.id, "⭐ برای نهایی کردن خرید ۲۹ ستاره اشتراک ماهانه VIP، به سازنده (سامان آریوبرزن) پیام دهید.")
     
     elif call.data == "start_ticket":
-        bot.send_message(call.message.chat.id, "✍️ لطفاً متن پیام خود را همینجا بفرستید تا مستقیماً برای مالک ارسال شود:")
-        bot.register_next_step_handler(call.message, process_user_ticket)
+        msg = bot.send_message(call.message.chat.id, "✍️ متنت رو بفرست تا مستقیم برسه دست سامان آریوبرزن:")
+        bot.register_next_step_handler(msg, process_user_ticket)
         
     elif call.data == "owner_panel":
-        if not is_admin(user_id):
-            bot.answer_callback_query(call.id, "❌ دسترسی غیرمجاز!", show_alert=True)
-            return
-        
-        panel_markup = InlineKeyboardMarkup(row_width=2)
-        panel_markup.add(
+        if not is_admin(user_id): return
+        panel = InlineKeyboardMarkup(row_width=2)
+        panel.add(
             InlineKeyboardButton("📊 آمار ربات", callback_data="admin_stats"),
             InlineKeyboardButton("📢 تنظیم کانال اجباری", callback_data="admin_set_ch"),
             InlineKeyboardButton("➕ افزودن ادمین", callback_data="admin_add_admin"),
             InlineKeyboardButton("⭐ مدیریت VIP", callback_data="admin_vip_menu"),
-            InlineKeyboardButton("🔙 خروج از پنل", callback_data="back_home")
+            InlineKeyboardButton("🔙 بستن", callback_data="close_panel")
         )
-        bot.edit_message_text("🔐 **پنل مدیریت شیشه‌ای ماتریکس:**\nگزینه مورد نظر را انتخاب کنید:", call.message.chat.id, call.message.message_id, reply_markup=panel_markup)
+        bot.edit_message_text("🔐 **پنل شیشه‌ای مدیریت (سامان آریوبرزن):**", call.message.chat.id, call.message.message_id, reply_markup=panel)
     
     elif call.data == "admin_stats":
-        vips_count = len(get_data(VIP_FILE))
-        admins_count = len(get_data(ADMINS_FILE))
+        vips = len(get_data(VIP_FILE))
+        admins = len(get_data(ADMINS_FILE))
         ch = get_required_channel()
-        stats_text = (
-            f"📊 **آمار سیستم:**\n\n"
-            f"• کانال عضویت اجباری: `{ch if ch else 'تنظیم نشده'}`\n"
-            f"• تعداد کاربران VIP: {vips_count}\n"
-            f"• تعداد ادمین‌ها: {admins_count}\n"
-            f"• وضعیت سرور: آنلاین 🟢"
-        )
-        back_markup = InlineKeyboardMarkup()
-        back_markup.add(InlineKeyboardButton("🔙 بازگشت به پنل", callback_data="owner_panel"))
-        bot.edit_message_text(stats_text, call.message.chat.id, call.message.message_id, reply_markup=back_markup, parse_mode="Markdown")
+        back = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 بازگشت", callback_data="owner_panel"))
+        bot.edit_message_text(f"📊 **آمار سیستم:**\n• کانال: {ch}\n• تعداد VIP: {vips}\n• تعداد ادمین: {admins}", call.message.chat.id, call.message.message_id, reply_markup=back)
     
     elif call.data == "admin_set_ch":
-        bot.send_message(call.message.chat.id, "✍️ آیدی کانال را به این صورت بفرستید:\n`/setchannel @ChannelID`", parse_mode="Markdown")
-    
+        bot.send_message(call.message.chat.id, "✍️ بفرست: `/setchannel @ID`", parse_mode="Markdown")
     elif call.data == "admin_add_admin":
-        bot.send_message(call.message.chat.id, "✍️ آیدی عددی کاربر را بفرستید:\n`/addadmin 123456789`", parse_mode="Markdown")
-    
+        bot.send_message(call.message.chat.id, "✍️ بفرست: `/addadmin UserID`", parse_mode="Markdown")
     elif call.data == "admin_vip_menu":
-        bot.send_message(call.message.chat.id, "✍️ برای افزودن بفرستید:\n`/addvip UserID`\nبرای حذف بفرستید:\n`/removevip UserID`", parse_mode="Markdown")
-    
-    elif call.data == "back_home":
+        bot.send_message(call.message.chat.id, "✍️ افزودن: `/addvip ID`\nحذف: `/removevip ID`", parse_mode="Markdown")
+    elif call.data == "close_panel":
         bot.delete_message(call.message.chat.id, call.message.message_id)
-        handle_start(call.message)
 
 def process_user_ticket(message):
     if message.text in ["🚀 استارت مجدد", "📖 راهنما", "📩 تیکت به مالک", "⭐ خرید VIP"]:
         handle_all_messages(message)
         return
         
-    user = message.from_user
     ticket_msg = (
-        f"📩 **تیکت جدید از کاربر!**\n\n"
-        f"👤 نام: {user.first_name}\n"
-        f"🆔 آیدی کاربر: `{user.id}`\n\n"
+        f"📩 **تیکت جدید برای سامان آریوبرزن!**\n\n"
+        f"👤 نام: {message.from_user.first_name}\n"
+        f"🆔 آیدی کاربر: `{message.from_user.id}`\n\n"
         f"💬 متن پیام:\n{message.text}\n\n"
-        f"👉 *برای پاسخ به این کاربر، کافی است همین پیام را ریپلای (Reply) کنید و پاسخ خود را بفرستید!*"
+        f"⚠️ **برای پاسخ، روی همین پیام ریپلای (Reply) کن و جوابت رو بنویس!**"
     )
     bot.send_message(OWNER_ID, ticket_msg, parse_mode="Markdown")
-    bot.reply_to(message, "✅ تیکت شما با موفقیت برای مالک ارسال شد. به زودی به شما پاسخ داده خواهد شد.", reply_markup=get_main_menu())
+    bot.reply_to(message, "✅ پیامت برای سامان آریوبرزن ارسال شد.", reply_markup=get_main_menu())
 
-# دستورات متنی مدیریت
-@bot.message_handler(commands=['setchannel'])
-def cmd_set_channel(message):
-    if not is_admin(message.from_user.id):
-        return
+# ================= دستورات پنل مدیریت =================
+@bot.message_handler(commands=['setchannel', 'addadmin', 'addvip'])
+def cmd_management(message):
+    if not is_admin(message.from_user.id): return
     parts = message.text.split(maxsplit=1)
     if len(parts) < 2:
-        bot.reply_to(message, "⚠️ آیدی کانال را وارد کنید.")
+        bot.reply_to(message, "⚠️ فرمت دستور اشتباه است!")
         return
-    ch = parts[1].strip()
-    with open(CHANNEL_FILE, "w", encoding="utf-8") as f:
-        f.write(ch + "\n")
-    bot.reply_to(message, f"✅ کانال عضویت اجباری تنظیم شد به: {ch}")
-
-@bot.message_handler(commands=['addadmin'])
-def cmd_add_admin(message):
-    if message.from_user.id != OWNER_ID:
-        bot.reply_to(message, "❌ فقط مالک اصلی!")
-        return
-    parts = message.text.split(maxsplit=1)
-    if len(parts) < 2:
-        bot.reply_to(message, "⚠️ آیدی عددی ادمین را وارد کنید.")
-        return
-    adm_id = parts[1].strip()
-    add_data(ADMINS_FILE, adm_id)
-    bot.reply_to(message, f"✅ کاربر `{adm_id}` ادمین شد.")
-
-@bot.message_handler(commands=['addvip'])
-def cmd_add_vip(message):
-    if not is_admin(message.from_user.id):
-        return
-    parts = message.text.split(maxsplit=1)
-    if len(parts) < 2:
-        bot.reply_to(message, "⚠️ آیدی کاربر VIP را وارد کنید.")
-        return
-    v_id = parts[1].strip()
-    add_data(VIP_FILE, v_id)
-    bot.reply_to(message, f"✅ کاربر `{v_id}` VIP شد و از عضویت اجباری معاف گشت.")
+    
+    cmd = parts[0]
+    val = parts[1].strip()
+    
+    if cmd == '/setchannel':
+        with open(CHANNEL_FILE, "w", encoding="utf-8") as f: f.write(val + "\n")
+        bot.reply_to(message, f"✅ کانال عضویت اجباری تنظیم شد: {val}")
+    elif cmd == '/addadmin' and message.from_user.id == OWNER_ID:
+        add_data(ADMINS_FILE, val)
+        bot.reply_to(message, f"✅ ادمین جدید اضافه شد.")
+    elif cmd == '/addvip':
+        add_data(VIP_FILE, val)
+        bot.reply_to(message, f"✅ کاربر به لیست VIP اضافه شد.")
 
 if __name__ == "__main__":
-    print("هسته‌ی نهایی اوراکل با قابلیت ریپلای تیکت و هوش مصنوعی استارت خورد...")
+    print("هسته‌ی اوراکل با سازندگی سامان آریوبرزن و مغز جمنای روشن شد...")
     bot.infinity_polling(skip_pending=True)
