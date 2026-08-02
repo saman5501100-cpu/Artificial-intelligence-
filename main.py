@@ -2,6 +2,8 @@ import os
 import re
 import telebot
 import google.generativeai as genai
+from PIL import Image
+from io import BytesIO
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 # ================= تنظیمات اصلی =================
@@ -15,7 +17,7 @@ ADMINS_FILE = "admins.txt"
 
 bot = telebot.TeleBot(TOKEN)
 
-# اتصال به مدل هوش مصنوعی چندوجهی (متن و تصویر)
+# اتصال به مدل هوش مصنوعی
 try:
     genai.configure(api_key=GEMINI_API_KEY)
     ai_model = genai.GenerativeModel("gemini-1.5-flash")
@@ -92,7 +94,6 @@ def handle_start(message):
         panel.add(InlineKeyboardButton("⚙️ باز کردن پنل مدیریت شیشه‌ای", callback_data="owner_panel"))
         bot.send_message(message.chat.id, "🔐 دسترسی ادمین فعال شد:", reply_markup=panel)
 
-# منوی شیشه‌ای حرفه‌ای کاربران
 @bot.message_handler(func=lambda message: message.text == "⚡ امکانات هوش مصنوعی")
 def ai_features(message):
     markup = InlineKeyboardMarkup(row_width=1)
@@ -111,7 +112,6 @@ def handle_all_messages(message):
         bot.reply_to(message, "⚠️ ابتدا باید در کانال اجباری عضو شوید!")
         return
 
-    # مدیریت پاسخ ادمین به تیکت‌ها
     if is_admin(user_id) and message.reply_to_message:
         replied_text = message.reply_to_message.text
         if replied_text:
@@ -132,7 +132,7 @@ def handle_all_messages(message):
             handle_start(message)
             return
         elif text == "📖 راهنما":
-            bot.reply_to(message, "📖 ربات پیشرفته اوراکل، توسعه‌یافته توسط **سامان آریوبرزن**. متن بفرست یا عکس آپلود کن تا هوش مصنوعی مثل خودت جواب بده!", reply_markup=get_main_menu())
+            bot.reply_to(message, "📖 ربات پیشرفته اوراکل، توسعه‌یافته توسط **سامان آریوبرزن**. متن بفرست یا عکس آپلود کن تا هوش مصنوعی جواب بده!", reply_markup=get_main_menu())
             return
         elif text == "📩 تیکت به مالک":
             btn = InlineKeyboardMarkup().add(InlineKeyboardButton("✍️ ارسال پیام مستقیم به سامان آریوبرزن", callback_data="start_ticket"))
@@ -143,35 +143,27 @@ def handle_all_messages(message):
             bot.reply_to(message, "⭐ با اشتراک VIP همیشه بدون عضویت اجباری از ربات استفاده کنید!", reply_markup=btn)
             return
 
-        # پاسخ هوش مصنوعی به متن
         bot.send_chat_action(message.chat.id, 'typing')
         try:
-            prompt = f"تو هوش مصنوعی اوراکل هستی. سازنده‌ات سامان آریوبرزن است. لحن صمیمی، حرفه‌ای و رفاقتی داشته باش. پیام کاربر: {text}"
+            prompt = f"تو هوش مصنوعی اوراکل هستی. سازنده‌ات سامان آریوبرزن است. لحن صمیمی و حرفه‌ای داشته باش. پیام کاربر: {text}"
             response = ai_model.generate_content(prompt)
             bot.reply_to(message, response.text, reply_markup=get_main_menu())
         except Exception as e:
             bot.reply_to(message, "🧠 مغز ماتریکس درگیر است؛ لطفاً لحظاتی دیگر دوباره تلاش کنید.", reply_markup=get_main_menu())
 
     elif message.content_type == 'photo':
-        # تحلیل پیشرفته عکس توسط هوش مصنوعی
         bot.send_chat_action(message.chat.id, 'upload_photo')
         try:
             fileID = message.photo[-1].file_id
             file_info = bot.get_file(fileID)
             downloaded_file = bot.download_file(file_info.file_path)
             
-            image_path = "temp_image.jpg"
-            with open(image_path, 'wb') as new_file:
-                new_file.write(downloaded_file)
+            # پردازش مستقیم عکس در حافظه (بدون نیاز به فایل موقت)
+            image = Image.open(BytesIO(downloaded_file))
+            prompt = message.caption if message.caption else "این عکس را با دقت تحلیل کن و با لحنی صمیمی، دقیق و حرفه‌ای جزئیاتش را توضیح بده."
             
-            sample_file = genai.upload_file(image_path)
-            prompt = message.caption if message.caption else "این عکس را با دقت تحلیل کن و با لحنی حرفه‌ای، صمیمی و دقیق جزئیاتش را بگو."
-            
-            response = ai_model.generate_content([sample_file, prompt])
+            response = ai_model.generate_content([prompt, image])
             bot.reply_to(message, f"🖼️ **تحلیل هوش مصنوعی از تصویر:**\n\n{response.text}", reply_markup=get_main_menu())
-            
-            if os.path.exists(image_path):
-                os.remove(image_path)
         except Exception as err:
             print("خطای پردازش عکس:", err)
             bot.reply_to(message, "❌ در پردازش تصویر خطایی رخ داد. لطفاً دوباره عکس بفرست.", reply_markup=get_main_menu())
@@ -258,5 +250,5 @@ def cmd_management(message):
         bot.reply_to(message, f"✅ کاربر با موفقیت به لیست VIP اضافه شد.")
 
 if __name__ == "__main__":
-    print("هسته‌ی پیشرفته‌ی اوراکل با قابلیت تحلیل عکس و سازندگی سامان آریوبرزن روشن شد...")
+    print("هسته‌ی اوراکل با قابلیت تحلیل حافظه داخلی و سازندگی سامان آریوبرزن روشن شد...")
     bot.infinity_polling(skip_pending=True)
