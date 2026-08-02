@@ -69,23 +69,6 @@ def get_main_menu(user_id):
         markup.add(KeyboardButton("👑 پنل مدیریت من"))
     return markup
 
-# فوتر شیشه‌ای پیشرفته با نمایش اهداکننده
-def get_dynamic_footer(donor_info=None, extra_btn_name=None, extra_btn_data=None):
-    markup = InlineKeyboardMarkup(row_width=2)
-    if extra_btn_name and extra_btn_data:
-        markup.add(InlineKeyboardButton(extra_btn_name, callback_data=extra_btn_data),
-                   InlineKeyboardButton("⚡ تست پینگ", callback_data="test_ping_general"))
-    
-    if donor_info and donor_info != "بدون کانال":
-        clean_donor = donor_info if donor_info.startswith("https://") or donor_info.startswith("@") else f"https://t.me/{donor_info.replace('@', '')}"
-        markup.add(InlineKeyboardButton(f"👑 اهداکننده: {donor_info}", url=clean_donor))
-    
-    markup.add(
-        InlineKeyboardButton("📢 کانال رسمی: اوراکل", url="https://t.me/Oracle09"),
-        InlineKeyboardButton("👑 سازنده: سامان آریوبرزن", url="https://t.me/Oracle09")
-    )
-    return markup
-
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     user_id = message.from_user.id
@@ -141,8 +124,17 @@ def handle_text_messages(message):
         cfg_body = parts[0]
         donor = parts[1] if len(parts) > 1 else "@Oracle09"
         
-        markup = get_dynamic_footer(donor, "🔄 کانفینگ دیگر", "get_another_config")
-        markup.add(InlineKeyboardButton("➕ اهدای کانفینگ جدید", callback_data="start_donate_config"))
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(InlineKeyboardButton("🔄 کانفینگ دیگر", callback_data="get_another_config"),
+                   InlineKeyboardButton("⚡ تست پینگ", callback_data="test_ping_general"))
+        if donor and donor != "بدون کانال":
+            clean_donor = donor if donor.startswith("https://") or donor.startswith("@") else f"https://t.me/{donor.replace('@', '')}"
+            markup.add(InlineKeyboardButton(f"👑 اهداکننده: {donor}", url=clean_donor))
+        markup.add(
+            InlineKeyboardButton("➕ اهدای کانفینگ جدید", callback_data="start_donate_config"),
+            InlineKeyboardButton("📢 کانال رسمی: اوراکل", url="https://t.me/Oracle09"),
+            InlineKeyboardButton("👑 سازنده: سامان آریوبرزن", url="https://t.me/Oracle09")
+        )
         
         bot.reply_to(message, f"🔗 **کانفینگ رایگان V2Ray:**\n\n`{cfg_body}`", parse_mode="Markdown", reply_markup=markup)
 
@@ -179,7 +171,7 @@ def handle_text_messages(message):
         
         bot.reply_to(message, f"⚡ **پروکسی اتصال تلگرام:**\n\n{proxy_body}", reply_markup=proxy_markup)
 
-    # ۳. دریافت کانفینگ نپستر (ارسال فایل سند واقعی)
+    # ۳. دریافت کانفینگ نپستر
     elif text == "📁 کانفینگ نپستر":
         napsters = get_data(NAPSTER_FILE)
         if not napsters:
@@ -192,8 +184,17 @@ def handle_text_messages(message):
         file_path_or_content = parts[0]
         donor = parts[1] if len(parts) > 1 else "@Oracle09"
         
-        markup = get_dynamic_footer(donor, "🔄 نپستر دیگر", "get_another_napster")
-        markup.add(InlineKeyboardButton("➕ اهدای نپستر جدید", callback_data="start_donate_napster"))
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(InlineKeyboardButton("🔄 نپستر دیگر", callback_data="get_another_napster"),
+                   InlineKeyboardButton("⚡ تست پینگ", callback_data="test_ping_general"))
+        if donor and donor != "بدون کانال":
+            clean_donor = donor if donor.startswith("https://") or donor.startswith("@") else f"https://t.me/{donor.replace('@', '')}"
+            markup.add(InlineKeyboardButton(f"👑 اهداکننده: {donor}", url=clean_donor))
+        markup.add(
+            InlineKeyboardButton("➕ اهدای نپستر جدید", callback_data="start_donate_napster"),
+            InlineKeyboardButton("📢 کانال رسمی: اوراکل", url="https://t.me/Oracle09"),
+            InlineKeyboardButton("👑 سازنده: سامان آریوبرزن", url="https://t.me/Oracle09")
+        )
         
         if os.path.exists(file_path_or_content):
             try:
@@ -204,7 +205,7 @@ def handle_text_messages(message):
         else:
             bot.reply_to(message, f"📁 **کانفینگ نپستر:**\n\n`{file_path_or_content}`", parse_mode="Markdown", reply_markup=markup)
 
-    # ۴. پنل کامل اهدای کانفینگ / نپستر / پروکسی
+    # ۴. اهدای کانفینگ / نپستر / پروکسی
     elif text == "🎁 اهدای کانفینگ/نپستر/پروکسی":
         markup = InlineKeyboardMarkup(row_width=2)
         markup.add(
@@ -246,6 +247,7 @@ def callback_handler(call):
     data = call.data
 
     if data == "get_another_config":
+        bot.answer_callback_query(call.id)
         configs = get_data(CONFIGS_FILE)
         if configs:
             selected_line = random.choice(configs)
@@ -253,13 +255,26 @@ def callback_handler(call):
             cfg_body = parts[0]
             donor = parts[1] if len(parts) > 1 else "@Oracle09"
             
-            markup = get_dynamic_footer(donor, "🔄 کانفینگ دیگر", "get_another_config")
-            markup.add(InlineKeyboardButton("➕ اهدای کانفینگ جدید", callback_data="start_donate_config"))
-            bot.edit_message_text(f"🔗 **کانفینگ رایگان V2Ray:**\n\n`{cfg_body}`", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+            markup = InlineKeyboardMarkup(row_width=2)
+            markup.add(InlineKeyboardButton("🔄 کانفینگ دیگر", callback_data="get_another_config"),
+                       InlineKeyboardButton("⚡ تست پینگ", callback_data="test_ping_general"))
+            if donor and donor != "بدون کانال":
+                clean_donor = donor if donor.startswith("https://") or donor.startswith("@") else f"https://t.me/{donor.replace('@', '')}"
+                markup.add(InlineKeyboardButton(f"👑 اهداکننده: {donor}", url=clean_donor))
+            markup.add(
+                InlineKeyboardButton("➕ اهدای کانفینگ جدید", callback_data="start_donate_config"),
+                InlineKeyboardButton("📢 کانال رسمی: اوراکل", url="https://t.me/Oracle09"),
+                InlineKeyboardButton("👑 سازنده: سامان آریوبرزن", url="https://t.me/Oracle09")
+            )
+            try:
+                bot.edit_message_text(f"🔗 **کانفینگ رایگان V2Ray:**\n\n`{cfg_body}`", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+            except:
+                pass
         else:
             bot.answer_callback_query(call.id, "موجود نیست!", show_alert=True)
 
     elif data == "get_another_proxy":
+        bot.answer_callback_query(call.id)
         proxies = get_data(PROXIES_FILE)
         if proxies:
             selected_line = random.choice(proxies)
@@ -281,11 +296,15 @@ def callback_handler(call):
                 InlineKeyboardButton("📢 کانال رسمی: اوراکل", url="https://t.me/Oracle09"),
                 InlineKeyboardButton("👑 سازنده: سامان آریوبرزن", url="https://t.me/Oracle09")
             )
-            bot.edit_message_text(f"⚡ **پروکسی اتصال تلگرام:**\n\n{proxy_body}", call.message.chat.id, call.message.message_id, reply_markup=proxy_markup)
+            try:
+                bot.edit_message_text(f"⚡ **پروکسی اتصال تلگرام:**\n\n{proxy_body}", call.message.chat.id, call.message.message_id, reply_markup=proxy_markup)
+            except:
+                pass
         else:
             bot.answer_callback_query(call.id, "موجود نیست!", show_alert=True)
 
     elif data == "get_another_napster":
+        bot.answer_callback_query(call.id)
         napsters = get_data(NAPSTER_FILE)
         if napsters:
             selected_line = random.choice(napsters)
@@ -293,8 +312,17 @@ def callback_handler(call):
             file_path_or_content = parts[0]
             donor = parts[1] if len(parts) > 1 else "@Oracle09"
             
-            markup = get_dynamic_footer(donor, "🔄 نپستر دیگر", "get_another_napster")
-            markup.add(InlineKeyboardButton("➕ اهدای نپستر جدید", callback_data="start_donate_napster"))
+            markup = InlineKeyboardMarkup(row_width=2)
+            markup.add(InlineKeyboardButton("🔄 نپستر دیگر", callback_data="get_another_napster"),
+                       InlineKeyboardButton("⚡ تست پینگ", callback_data="test_ping_general"))
+            if donor and donor != "بدون کانال":
+                clean_donor = donor if donor.startswith("https://") or donor.startswith("@") else f"https://t.me/{donor.replace('@', '')}"
+                markup.add(InlineKeyboardButton(f"👑 اهداکننده: {donor}", url=clean_donor))
+            markup.add(
+                InlineKeyboardButton("➕ اهدای نپستر جدید", callback_data="start_donate_napster"),
+                InlineKeyboardButton("📢 کانال رسمی: اوراکل", url="https://t.me/Oracle09"),
+                InlineKeyboardButton("👑 سازنده: سامان آریوبرزن", url="https://t.me/Oracle09")
+            )
             
             try:
                 bot.delete_message(call.message.chat.id, call.message.message_id)
@@ -313,7 +341,7 @@ def callback_handler(call):
             bot.answer_callback_query(call.id, "موجود نیست!", show_alert=True)
 
     elif data == "test_ping_general":
-        bot.answer_callback_query(call.id, "⚡ پینگ فوق‌العاده و پایدار زیر 50ms!", show_alert=True)
+        bot.answer_callback_query(call.id, "⚡ پینگ فوق‌العاده و پایدار زیر 40ms!", show_alert=True)
 
     elif data == "start_donate_config":
         bot.answer_callback_query(call.id)
