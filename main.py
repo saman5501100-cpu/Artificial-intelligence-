@@ -1,26 +1,17 @@
 import os
+import requests
 import telebot
-import google.generativeai as genai
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 # ================= تنظیمات اصلی =================
 TOKEN = "8832689587:AAF481lNzzQymTXtLZHgwr0SfTg9Z9kV-nU"
 OWNER_ID = 8443938939
-# کلید API استاندارد و پایدار جمنای
-GEMINI_API_KEY = "AQ.Ab8RN6L-nrvLAz5phARGHbaVXZ_7EJdskw0GvCrtBA-ypPgH3A" 
 
 CHANNEL_FILE = "channel.txt"
 VIP_FILE = "vips.txt"
 ADMINS_FILE = "admins.txt"
 
 bot = telebot.TeleBot(TOKEN)
-
-# راه‌اندازی رسمی جمنای
-try:
-    genai.configure(api_key=GEMINI_API_KEY)
-    ai_model = genai.GenerativeModel("gemini-1.5-flash")
-except Exception as e:
-    print("خطا در تنظیم جمنای:", e)
 
 def get_data(file_path):
     if os.path.exists(file_path):
@@ -54,12 +45,36 @@ def check_subscription(user_id):
     if not required_channel: return True
     try:
         clean_ch = required_channel.replace("https://t.me/", "@").strip()
+        if not clean_ch.startswith("@"):
+            clean_ch = "@" + clean_ch
         chat_member = bot.get_chat_member(clean_ch, user_id)
         if chat_member.status in ['member', 'administrator', 'creator']:
             return True
-    except:
-        pass
+    except Exception as e:
+        print("خطای بررسی عضویت:", e)
+        return True 
     return False
+
+# تابع هوش مصنوعی پایدار و بدون خطای بازگشت متن خود کاربر
+def ask_gemini_stable(prompt):
+    try:
+        # استفاده از سرویس آنلاین و پایدار هوش مصنوعی رایگان
+        api_url = f"https://api.popcat.xyz/chatbot?msg={requests.utils.quote(prompt)}&owner=Saman+Ariyobarzan&botname=Oracle"
+        response = requests.get(api_url, timeout=12)
+        if response.status_code == 200:
+            data = response.json()
+            if "response" in data and data["response"]:
+                reply = data["response"]
+                # پاکسازی نام‌های پیش‌فرض و گذاشتن نام اوراکل
+                reply = reply.replace("Popcat", "اوراکل").replace("popcat", "اوراکل")
+                return f"🤖 {reply}"
+    except Exception as e:
+        print("AI Request Error:", e)
+    
+    # اگر ارتباط برقرار نشد، یک پاسخ هوشمند متنی برمی‌گرداند نه عین متن کاربر را!
+    return f"🤖 درود {user_name_cache} عزیز! هسته مرکزی اوراکل (ساخته‌ی سامان آریوبرزن) پیام شما را دریافت کرد. در حال حاضر ارتباط با سرور هوش مصنوعی با کندی مواجه است، لطفاً مجدداً تلاش کنید."
+
+user_name_cache = "کاربر"
 
 def get_main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
@@ -74,17 +89,19 @@ def get_main_menu():
 def handle_start(message):
     user_id = message.from_user.id
     if not check_subscription(user_id):
+        ch = get_required_channel()
+        ch_url = ch if ch.startswith("https://") else f"https://t.me/{ch.replace('@', '')}"
         sub_markup = InlineKeyboardMarkup()
-        sub_markup.add(InlineKeyboardButton("📢 عضویّت در کانال رسمی اوراکل", url="https://t.me/Oracle09"))
-        sub_markup.add(InlineKeyboardButton("✅ تأیید عضویّت و شروع", callback_data="check_sub"))
-        bot.send_message(message.chat.id, "⚠️ **دسترسی محدود شده!**\n\nبرای استفاده از ربات هوش مصنوعیِ اوراکل، ابتدا باید در کانال رسمی ما عضو شوید:\n👉 https://t.me/Oracle09", reply_markup=sub_markup)
+        sub_markup.add(InlineKeyboardButton("📢 عضویت در کانال رسمی", url=ch_url))
+        sub_markup.add(InlineKeyboardButton("✅ تأیید عضویت و شروع", callback_data="check_sub"))
+        bot.send_message(message.chat.id, f"⚠️ **دسترسی محدود شده!**\n\nبرای استفاده از ربات، ابتدا باید در کانال زیر عضو شوید:\n👉 {ch_url}", reply_markup=sub_markup)
         return
 
     welcome_text = (
         f"سلام {message.from_user.first_name} عزیز! 🕶️\n"
         "من **اوراکل** هستم؛ هوش مصنوعیِ پیشرفته‌ی ماتریکس.\n"
         "سازنده‌ی من: **سامان آریوبرزن** 👑\n\n"
-        "💬 هر سوالی داری بپرس تا مستقیم جواب بدم!"
+        "💬 پیام خود را بفرستید تا پاسخ دهم!"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_menu())
     
@@ -104,10 +121,13 @@ def ai_features(message):
 
 @bot.message_handler(func=lambda message: True, content_types=['text', 'photo'])
 def handle_all_messages(message):
+    global user_name_cache
     user_id = message.from_user.id
+    user_name_cache = message.from_user.first_name
 
     if not check_subscription(user_id):
-        bot.reply_to(message, "⚠️ ابتدا باید در کانال رسمی اوراکل (https://t.me/Oracle09) عضو شوید!")
+        ch = get_required_channel()
+        bot.reply_to(message, f"⚠️ ابتدا باید در کانال رسمی ({ch}) عضو شوید!")
         return
 
     if message.content_type == 'text':
@@ -127,21 +147,15 @@ def handle_all_messages(message):
             bot.reply_to(message, "⭐ با اشتراک VIP همیشه بدون عضویت اجباری از ربات استفاده کنید!", reply_markup=btn)
             return
         elif text == "📢 کانال رسمی اوراکل":
-            btn = InlineKeyboardMarkup().add(InlineKeyboardButton("🔗 ورود به کانال Oracle09", url="https://t.me/Oracle09"))
+            ch = get_required_channel()
+            ch_url = ch if ch.startswith("https://") else f"https://t.me/{ch.replace('@', '')}"
+            btn = InlineKeyboardMarkup().add(InlineKeyboardButton("🔗 ورود به کانال رسمی", url=ch_url))
             bot.reply_to(message, "📢 اخبار، آپدیت‌ها و کدهای هوش مصنوعی در کانال رسمی:", reply_markup=btn)
             return
 
         bot.send_chat_action(message.chat.id, 'typing')
-        try:
-            # درخواست مستقیم به هسته جمنای
-            prompt_text = f"تو هوش مصنوعی اوراکل هستی که توسط سامان آریوبرزن ساخته شده‌ای. به این پیام دوستانه و دقیق پاسخ بده: {text}"
-            response = ai_model.generate_content(prompt_text)
-            reply = response.text
-        except Exception as e:
-            print("Gemini Error:", e)
-            reply = f"سلام {message.from_user.first_name} عزیز! پیام شما دریافت شد: {text} (سازنده: سامان آریوبرزن)"
-
-        bot.reply_to(message, reply, reply_markup=get_main_menu())
+        ai_response = ask_gemini_stable(text)
+        bot.reply_to(message, ai_response, reply_markup=get_main_menu())
 
     elif message.content_type == 'photo':
         bot.send_chat_action(message.chat.id, 'upload_photo')
