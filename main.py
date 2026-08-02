@@ -62,14 +62,14 @@ def get_main_menu(user_id):
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(
         KeyboardButton("🚀 دریافت کانفینگ رایگان"), KeyboardButton("⚡ دریافت پروکسی"),
-        KeyboardButton("📁 کانفینگ نپستر"), KeyboardButton("🎁 اهدای کانفینگ/نپستر"),
+        KeyboardButton("📁 کانفینگ نپستر"), KeyboardButton("🎁 اهدای کانفینگ/نپستر/پروکسی"),
         KeyboardButton("📖 راهنما"), KeyboardButton("📢 کانال اوراکل")
     )
     if is_admin(user_id):
         markup.add(KeyboardButton("👑 پنل مدیریت من"))
     return markup
 
-# فوتر شیشه‌ای برای V2Ray و بخش‌های عمومی
+# فوتر شیشه‌ای پیشرفته با نمایش اهداکننده
 def get_dynamic_footer(donor_info=None, extra_btn_name=None, extra_btn_data=None):
     markup = InlineKeyboardMarkup(row_width=2)
     if extra_btn_name and extra_btn_data:
@@ -128,7 +128,7 @@ def handle_text_messages(message):
         bot.reply_to(message, f"⚠️ ابتدا باید در کانال رسمی ({ch}) عضو شوید!")
         return
 
-    # ۱. دریافت کانفینگ رایگان (V2Ray)
+    # ۱. دریافت کانفینگ V2Ray
     if text == "🚀 دریافت کانفینگ رایگان":
         configs = get_data(CONFIGS_FILE)
         if not configs:
@@ -146,27 +146,40 @@ def handle_text_messages(message):
         
         bot.reply_to(message, f"🔗 **کانفینگ رایگان V2Ray:**\n\n`{cfg_body}`", parse_mode="Markdown", reply_markup=markup)
 
-    # ۲. دریافت پروکسی (با دکمه اتصال مستقیم)
+    # ۲. دریافت پروکسی
     elif text == "⚡ دریافت پروکسی":
         proxies = get_data(PROXIES_FILE)
         if not proxies:
-            bot.reply_to(message, "📭 در حال حاضر هیچ پروکسی ثبت نشده است.")
+            bot.reply_to(message, "📭 در حال حاضر هیچ پروکسی ثبت نشده است.",
+                         reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton("➕ اهدای پروکسی جدید", callback_data="start_donate_proxy")))
             return
         
-        selected_proxy = random.choice(proxies)
+        selected_line = random.choice(proxies)
+        parts = selected_line.split("|||")
+        proxy_body = parts[0]
+        donor = parts[1] if len(parts) > 1 else "@Oracle09"
+        
         proxy_markup = InlineKeyboardMarkup(row_width=2)
-        if "t.me/proxy" in selected_proxy or "tg://proxy" in selected_proxy:
-            proxy_markup.add(InlineKeyboardButton("🔗 اتصال مستقیم به پروکسی", url=selected_proxy))
+        if "t.me/proxy" in proxy_body or "tg://proxy" in proxy_body:
+            proxy_markup.add(InlineKeyboardButton("🔗 اتصال مستقیم به پروکسی", url=proxy_body))
             
         proxy_markup.add(
             InlineKeyboardButton("🔄 پروکسی دیگر", callback_data="get_another_proxy"),
+            InlineKeyboardButton("➕ اهدای پروکسی جدید", callback_data="start_donate_proxy")
+        )
+        
+        if donor and donor != "بدون کانال":
+            clean_donor = donor if donor.startswith("https://") or donor.startswith("@") else f"https://t.me/{donor.replace('@', '')}"
+            proxy_markup.add(InlineKeyboardButton(f"👑 اهداکننده: {donor}", url=clean_donor))
+            
+        proxy_markup.add(
+            InlineKeyboardButton("📢 کانال رسمی: اوراکل", url="https://t.me/Oracle09"),
             InlineKeyboardButton("👑 سازنده: سامان آریوبرزن", url="https://t.me/Oracle09")
         )
-        proxy_markup.add(InlineKeyboardButton("📢 کانال رسمی: اوراکل", url="https://t.me/Oracle09"))
         
-        bot.reply_to(message, f"⚡ **پروکسی اتصال تلگرام:**\n\n{selected_proxy}", reply_markup=proxy_markup)
+        bot.reply_to(message, f"⚡ **پروکسی اتصال تلگرام:**\n\n{proxy_body}", reply_markup=proxy_markup)
 
-    # ۳. دریافت کانفینگ نپستر (ارسال به صورت فایل واقعی .npvt)
+    # ۳. دریافت کانفینگ نپستر (ارسال فایل سند واقعی)
     elif text == "📁 کانفینگ نپستر":
         napsters = get_data(NAPSTER_FILE)
         if not napsters:
@@ -182,7 +195,6 @@ def handle_text_messages(message):
         markup = get_dynamic_footer(donor, "🔄 نپستر دیگر", "get_another_napster")
         markup.add(InlineKeyboardButton("➕ اهدای نپستر جدید", callback_data="start_donate_napster"))
         
-        # اگر فایل ذخیره شده باشد، به عنوان سند (Document) می‌فرستیم
         if os.path.exists(file_path_or_content):
             try:
                 with open(file_path_or_content, 'rb') as f:
@@ -192,20 +204,20 @@ def handle_text_messages(message):
         else:
             bot.reply_to(message, f"📁 **کانفینگ نپستر:**\n\n`{file_path_or_content}`", parse_mode="Markdown", reply_markup=markup)
 
-    # ۴. اهدای کانفینگ / نپستر
-    elif text == "🎁 اهدای کانفینگ/نپستر":
+    # ۴. پنل کامل اهدای کانفینگ / نپستر / پروکسی
+    elif text == "🎁 اهدای کانفینگ/نپستر/پروکسی":
         markup = InlineKeyboardMarkup(row_width=2)
         markup.add(
             InlineKeyboardButton("🔗 اهدای کانفینگ V2Ray", callback_data="start_donate_config"),
-            InlineKeyboardButton("📁 اهدای فایل نپستر (.npvt)", callback_data="start_donate_napster")
+            InlineKeyboardButton("📁 اهدای فایل نپستر (.npvt)", callback_data="start_donate_napster"),
+            InlineKeyboardButton("⚡ اهدای پروکسی", callback_data="start_donate_proxy")
         )
-        bot.reply_to(message, "🎁 چه نوع کانفینگی می‌خواهید به ربات اهدا کنید؟", reply_markup=markup)
+        bot.reply_to(message, "🎁 از پنل شیشه‌ای زیر مشخص کنید چه چیزی می‌خواهید به ربات اهدا کنید:", reply_markup=markup)
 
     elif text == "📖 راهنما":
         help_text = (
             "📖 **راهنمای ربات:**\n\n"
-            "• دریافت و اهدای کانفینگ‌های V2Ray و فایل‌های نپستر با ثبت خودکار آیدی اهداکننده.\n"
-            "• دریافت پروکسی‌های پرسرعت تلگرام.\n\n"
+            "• دریافت و اهدای کانفینگ‌های V2Ray، فایل‌های نپستر و پروکسی‌ها با ثبت خودکار آیدی اهداکننده.\n\n"
             "👑 توسعه‌یافته توسط: **سامان آریوبرزن**\n"
             "📢 کانال رسمی: https://t.me/Oracle09"
         )
@@ -250,16 +262,26 @@ def callback_handler(call):
     elif data == "get_another_proxy":
         proxies = get_data(PROXIES_FILE)
         if proxies:
-            selected_proxy = random.choice(proxies)
+            selected_line = random.choice(proxies)
+            parts = selected_line.split("|||")
+            proxy_body = parts[0]
+            donor = parts[1] if len(parts) > 1 else "@Oracle09"
+            
             proxy_markup = InlineKeyboardMarkup(row_width=2)
-            if "t.me/proxy" in selected_proxy or "tg://proxy" in selected_proxy:
-                proxy_markup.add(InlineKeyboardButton("🔗 اتصال مستقیم به پروکسی", url=selected_proxy))
+            if "t.me/proxy" in proxy_body or "tg://proxy" in proxy_body:
+                proxy_markup.add(InlineKeyboardButton("🔗 اتصال مستقیم به پروکسی", url=proxy_body))
             proxy_markup.add(
                 InlineKeyboardButton("🔄 پروکسی دیگر", callback_data="get_another_proxy"),
+                InlineKeyboardButton("➕ اهدای پروکسی جدید", callback_data="start_donate_proxy")
+            )
+            if donor and donor != "بدون کانال":
+                clean_donor = donor if donor.startswith("https://") or donor.startswith("@") else f"https://t.me/{donor.replace('@', '')}"
+                proxy_markup.add(InlineKeyboardButton(f"👑 اهداکننده: {donor}", url=clean_donor))
+            proxy_markup.add(
+                InlineKeyboardButton("📢 کانال رسمی: اوراکل", url="https://t.me/Oracle09"),
                 InlineKeyboardButton("👑 سازنده: سامان آریوبرزن", url="https://t.me/Oracle09")
             )
-            proxy_markup.add(InlineKeyboardButton("📢 کانال رسمی: اوراکل", url="https://t.me/Oracle09"))
-            bot.edit_message_text(f"⚡ **پروکسی اتصال تلگرام:**\n\n{selected_proxy}", call.message.chat.id, call.message.message_id, reply_markup=proxy_markup)
+            bot.edit_message_text(f"⚡ **پروکسی اتصال تلگرام:**\n\n{proxy_body}", call.message.chat.id, call.message.message_id, reply_markup=proxy_markup)
         else:
             bot.answer_callback_query(call.id, "موجود نیست!", show_alert=True)
 
@@ -291,7 +313,7 @@ def callback_handler(call):
             bot.answer_callback_query(call.id, "موجود نیست!", show_alert=True)
 
     elif data == "test_ping_general":
-        bot.answer_callback_query(call.id, "⚡ پینگ فوق‌العاده و پایدار زیر 60ms!", show_alert=True)
+        bot.answer_callback_query(call.id, "⚡ پینگ فوق‌العاده و پایدار زیر 50ms!", show_alert=True)
 
     elif data == "start_donate_config":
         bot.answer_callback_query(call.id)
@@ -303,16 +325,24 @@ def callback_handler(call):
         msg = bot.send_message(call.message.chat.id, "📤 لطفاً **فایل سند نپستر (.npvt)** خود را ارسال کنید:")
         bot.register_next_step_handler(msg, process_user_napster_file)
 
+    elif data == "start_donate_proxy":
+        bot.answer_callback_query(call.id)
+        msg = bot.send_message(call.message.chat.id, "📤 لطفاً **لینک پروکسی تلگرام** خود را ارسال کنید:")
+        bot.register_next_step_handler(msg, process_user_proxy_body)
+
     elif data == "no_channel_link":
         bot.answer_callback_query(call.id, "ثبت شد!")
         user_id = call.from_user.id
         cfg_type = user_temp_type.get(user_id, "config")
         content = user_temp_storage.get(user_id, "")
         
-        target_file = CONFIGS_FILE if cfg_type == "config" else NAPSTER_FILE
-        add_data(target_file, f"{content}|||@Oracle09")
+        if cfg_type == "proxy":
+            add_data(PROXIES_FILE, f"{content}|||@Oracle09")
+        else:
+            target_file = CONFIGS_FILE if cfg_type == "config" else NAPSTER_FILE
+            add_data(target_file, f"{content}|||@Oracle09")
         
-        bot.send_message(call.message.chat.id, "🔥 دمت گرم! کانفینگ شما با موفقیت ثبت شد.\n\nتوسعه‌یافته توسط سامان آریوبرزن 👑\nhttps://t.me/Oracle09", reply_markup=get_main_menu(user_id))
+        bot.send_message(call.message.chat.id, "🔥 دمت گرم! موارد شما با موفقیت ثبت شد.\n\nتوسعه‌یافته توسط سامان آریوبرزن 👑\nhttps://t.me/Oracle09", reply_markup=get_main_menu(user_id))
 
     elif data == "back_to_user":
         bot.answer_callback_query(call.id)
@@ -337,7 +367,7 @@ def callback_handler(call):
     elif data == "admin_add_proxy":
         if not is_admin(user_id): return
         msg = bot.send_message(call.message.chat.id, "✍️ لینک پروکسی جدید را بفرستید:")
-        bot.register_next_step_handler(msg, lambda m: (add_data(PROXIES_FILE, m.text), bot.reply_to(m, "✅ ثبت شد!")))
+        bot.register_next_step_handler(msg, lambda m: (add_data(PROXIES_FILE, f"{m.text}|||@Oracle09"), bot.reply_to(m, "✅ ثبت شد!")))
 
     elif data == "admin_add_napster":
         if not is_admin(user_id): return
@@ -347,7 +377,7 @@ def callback_handler(call):
     elif data == "admin_auto_scan":
         if not is_admin(user_id): return
         add_data(CONFIGS_FILE, "vless://auto-v2ray@server:443?encryption=none#Oracle|||@Oracle09")
-        add_data(PROXIES_FILE, "https://t.me/proxy?server=proxy.oracle-server.com&port=443&secret=123456")
+        add_data(PROXIES_FILE, "https://t.me/proxy?server=proxy.oracle-server.com&port=443&secret=123456|||@Oracle09")
         add_data(NAPSTER_FILE, "sample_napster.npvt|||@Oracle09")
         bot.answer_callback_query(call.id, "🤖 اسکن خودکار انجام شد!", show_alert=True)
 
@@ -368,7 +398,15 @@ def process_user_config_body(message):
     msg = bot.send_message(message.chat.id, "🔗 عالیه! حالا **لینک کانال خودت** رو بفرست تا به عنوان اهداکننده ثبت بشه (یا روی دکمه زیر بزن):", reply_markup=markup)
     bot.register_next_step_handler(msg, process_user_channel_input)
 
-# دریافت فایل نپستر از کاربر
+def process_user_proxy_body(message):
+    user_id = message.from_user.id
+    user_temp_storage[user_id] = message.text
+    user_temp_type[user_id] = "proxy"
+    
+    markup = InlineKeyboardMarkup().add(InlineKeyboardButton("❌ کانال ندارم", callback_data="no_channel_link"))
+    msg = bot.send_message(message.chat.id, "🔗 پروکسی دریافت شد! حالا **لینک کانال خودت** رو بفرست (یا روی دکمه زیر بزن):", reply_markup=markup)
+    bot.register_next_step_handler(msg, process_user_channel_input)
+
 def process_user_napster_file(message):
     user_id = message.from_user.id
     if message.document:
@@ -391,16 +429,18 @@ def process_user_napster_file(message):
 
 def process_user_channel_input(message):
     user_id = message.from_user.id
-    cfg_content = user_temp_storage.get(user_id, "")
+    content = user_temp_storage.get(user_id, "")
     cfg_type = user_temp_type.get(user_id, "config")
     channel_link = message.text.strip()
     
-    target_file = CONFIGS_FILE if cfg_type == "config" else NAPSTER_FILE
-    add_data(target_file, f"{cfg_content}|||{channel_link}")
+    if cfg_type == "proxy":
+        add_data(PROXIES_FILE, f"{content}|||{channel_link}")
+    else:
+        target_file = CONFIGS_FILE if cfg_type == "config" else NAPSTER_FILE
+        add_data(target_file, f"{content}|||{channel_link}")
     
-    bot.send_message(message.chat.id, "❤️ دمت گرم! فایل نپستر و آیدی کانال شما با موفقیت ثبت شد.\n\nتوسعه‌یافته توسط سامان آریوبرزن 👑\nhttps://t.me/Oracle09", reply_markup=get_main_menu(user_id))
+    bot.send_message(message.chat.id, "❤️ دمت گرم! مورد شما همراه با آیدی کانال با موفقیت ثبت شد.\n\nتوسعه‌یافته توسط سامان آریوبرزن 👑\nhttps://t.me/Oracle09", reply_markup=get_main_menu(user_id))
 
-# دریافت فایل نپستر توسط ادمین
 def process_admin_napster_file(message):
     if message.document:
         file_info = bot.get_file(message.document.file_id)
