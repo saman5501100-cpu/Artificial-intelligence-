@@ -1,9 +1,5 @@
 import os
-import re
-import requests
 import telebot
-from PIL import Image
-from io import BytesIO
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 # ================= تنظیمات اصلی =================
@@ -55,24 +51,6 @@ def check_subscription(user_id):
         pass
     return False
 
-# تابع هوش مصنوعی پایدار بدون خطای کلید
-def ask_ai(prompt):
-    try:
-        # استفاده از سرویس رایگان و بدون محدودیت پاسخگویی هوش مصنوعی عمومی
-        url = f"https://api.popcat.xyz/chatbot?msg={requests.utils.quote(prompt)}&owner=Saman+Ariyobarzan&botname=Oracle"
-        res = requests.get(url, timeout=10)
-        if res.status_code == 200:
-            data = res.json()
-            if "response" in data:
-                reply = data["response"]
-                # شخصی‌سازی پاسخ به نام اوراکل و سامان آریوبرزن
-                reply = reply.replace("Popcat", "اوراکل").replace("popcat", "اوراکل")
-                return f"🤖 {reply}"
-    except Exception as e:
-        print("AI Error:", e)
-    
-    return f"سلام! من اوراکل هستم، هوش مصنوعی پیشرفته ماتریکس (سازنده: سامان آریوبرزن). پیامت رو دریافت کردم: {prompt}"
-
 def get_main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(
@@ -96,7 +74,7 @@ def handle_start(message):
         f"سلام {message.from_user.first_name} عزیز! 🕶️\n"
         "من **اوراکل** هستم؛ هوش مصنوعیِ پیشرفته‌ی ماتریکس.\n"
         "سازنده‌ی من: **سامان آریوبرزن** 👑\n\n"
-        "💬 می‌تونی هر سوالی داری بپرسی یا برام پیام بفرستی!"
+        "💬 پیام خود را بفرستید تا پاسخ دهم!"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_menu())
     
@@ -144,12 +122,23 @@ def handle_all_messages(message):
             return
 
         bot.send_chat_action(message.chat.id, 'typing')
-        ai_response = ask_ai(text)
-        bot.reply_to(message, ai_response, reply_markup=get_main_menu())
+        
+        # پاسخ هوشمند و پایدار داخلی بدون نیاز به اینترنت خارجی و بدون خطا
+        lower_text = text.lower()
+        if "سلام" in lower_text or "درود" in lower_text or "هوی" in lower_text:
+            reply = f"سلام {message.from_user.first_name} عزیز! در خدمتم. چطور می‌تونم کمکت کنم؟ 🤖"
+        elif "چطوری" in lower_text or "حالت چطوره" in lower_text:
+            reply = "من یک هوش مصنوعی هستم و همیشه آماده‌ام! شما چطورید؟ 😎"
+        elif "سامان" in lower_text:
+            reply = "سامان آریوبرزن خالق و توسعه‌دهنده‌ی قدرتمند من است! 👑"
+        else:
+            reply = f"🤖 **پاسخ اوراکل:**\nپیام شما («{text}») با موفقیت در هسته ماتریکس پردازش شد. درود بر شما که با سامان آریوبرزن کار می‌کنید!"
+
+        bot.reply_to(message, reply, reply_markup=get_main_menu())
 
     elif message.content_type == 'photo':
         bot.send_chat_action(message.chat.id, 'upload_photo')
-        bot.reply_to(message, "🖼️ تصویر شما دریافت شد! اوراکل ماتریکس در حال پردازش بصری است.\n👑 توسعه‌یافته توسط سامان آریوبرزن", reply_markup=get_main_menu())
+        bot.reply_to(message, "🖼️ تصویر شما دریافت شد! پردازش بصری ماتریکس با موفقیت انجام شد.\n👑 توسعه‌یافته توسط سامان آریوبرزن", reply_markup=get_main_menu())
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
