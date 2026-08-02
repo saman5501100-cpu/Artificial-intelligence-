@@ -1,5 +1,4 @@
 import os
-import requests
 import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -50,38 +49,16 @@ def check_subscription(user_id):
         chat_member = bot.get_chat_member(clean_ch, user_id)
         if chat_member.status in ['member', 'administrator', 'creator']:
             return True
-    except Exception as e:
-        print("خطای بررسی عضویت:", e)
-        return True 
+    except:
+        pass
     return False
-
-# تابع هوش مصنوعی پایدار و بدون خطای بازگشت متن خود کاربر
-def ask_gemini_stable(prompt):
-    try:
-        # استفاده از سرویس آنلاین و پایدار هوش مصنوعی رایگان
-        api_url = f"https://api.popcat.xyz/chatbot?msg={requests.utils.quote(prompt)}&owner=Saman+Ariyobarzan&botname=Oracle"
-        response = requests.get(api_url, timeout=12)
-        if response.status_code == 200:
-            data = response.json()
-            if "response" in data and data["response"]:
-                reply = data["response"]
-                # پاکسازی نام‌های پیش‌فرض و گذاشتن نام اوراکل
-                reply = reply.replace("Popcat", "اوراکل").replace("popcat", "اوراکل")
-                return f"🤖 {reply}"
-    except Exception as e:
-        print("AI Request Error:", e)
-    
-    # اگر ارتباط برقرار نشد، یک پاسخ هوشمند متنی برمی‌گرداند نه عین متن کاربر را!
-    return f"🤖 درود {user_name_cache} عزیز! هسته مرکزی اوراکل (ساخته‌ی سامان آریوبرزن) پیام شما را دریافت کرد. در حال حاضر ارتباط با سرور هوش مصنوعی با کندی مواجه است، لطفاً مجدداً تلاش کنید."
-
-user_name_cache = "کاربر"
 
 def get_main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(
         KeyboardButton("🚀 استارت مجدد"), KeyboardButton("📖 راهنما"),
         KeyboardButton("📩 تیکت به مالک"), KeyboardButton("⭐ خرید VIP"),
-        KeyboardButton("⚡ امکانات هوش مصنوعی"), KeyboardButton("📢 کانال رسمی اوراکل")
+        KeyboardButton("⚡ امکانات ربات"), KeyboardButton("📢 کانال رسمی اوراکل")
     )
     return markup
 
@@ -99,9 +76,9 @@ def handle_start(message):
 
     welcome_text = (
         f"سلام {message.from_user.first_name} عزیز! 🕶️\n"
-        "من **اوراکل** هستم؛ هوش مصنوعیِ پیشرفته‌ی ماتریکس.\n"
-        "سازنده‌ی من: **سامان آریوبرزن** 👑\n\n"
-        "💬 پیام خود را بفرستید تا پاسخ دهم!"
+        "من رباتِ **اوراکل** هستم؛ توسعه‌یافته در ماتریکس.\n"
+        "سازنده: **سامان آریوبرزن** 👑\n\n"
+        "💬 دستور یا پیام خود را بفرستید!"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_menu())
     
@@ -110,20 +87,18 @@ def handle_start(message):
         panel.add(InlineKeyboardButton("⚙️ باز کردن پنل مدیریت", callback_data="owner_panel"))
         bot.send_message(message.chat.id, "🔐 دسترسی ادمین فعال شد:", reply_markup=panel)
 
-@bot.message_handler(func=lambda message: message.text == "⚡ امکانات هوش مصنوعی")
+@bot.message_handler(func=lambda message: message.text == "⚡ امکانات ربات")
 def ai_features(message):
     markup = InlineKeyboardMarkup(row_width=1)
     markup.add(
-        InlineKeyboardButton("🧠 درباره مغز متفکر", callback_data="help_ai"),
+        InlineKeyboardButton("🧠 درباره هسته مرکزی", callback_data="help_ai"),
         InlineKeyboardButton("👑 سازنده و توسعه‌دهنده", callback_data="help_creator")
     )
-    bot.reply_to(message, "⚡ **بخش امکانات پیشرفته هوش مصنوعی اوراکل:**", reply_markup=markup)
+    bot.reply_to(message, "⚡ **بخش امکانات پیشرفته ربات اوراکل:**", reply_markup=markup)
 
 @bot.message_handler(func=lambda message: True, content_types=['text', 'photo'])
 def handle_all_messages(message):
-    global user_name_cache
     user_id = message.from_user.id
-    user_name_cache = message.from_user.first_name
 
     if not check_subscription(user_id):
         ch = get_required_channel()
@@ -154,12 +129,13 @@ def handle_all_messages(message):
             return
 
         bot.send_chat_action(message.chat.id, 'typing')
-        ai_response = ask_gemini_stable(text)
-        bot.reply_to(message, ai_response, reply_markup=get_main_menu())
+        
+        # پاسخ ثابت و اختصاصی ربات به متن کاربر
+        bot.reply_to(message, "🤖 **پاسخ اوراکل:** پیام شما در سیستم ثبت و پردازش شد. (توسعه‌دهنده: سامان آریوبرزن)", reply_markup=get_main_menu())
 
     elif message.content_type == 'photo':
         bot.send_chat_action(message.chat.id, 'upload_photo')
-        bot.reply_to(message, "🖼️ تصویر شما دریافت شد! اوراکل در حال تحلیل بصری است.\n👑 توسعه‌یافته توسط سامان آریوبرزن", reply_markup=get_main_menu())
+        bot.reply_to(message, "🖼️ تصویر شما با موفقیت دریافت و در سیستم ثبت شد.\n👑 توسعه‌یافته توسط سامان آریوبرزن", reply_markup=get_main_menu())
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
@@ -184,7 +160,7 @@ def callback_handler(call):
 
     elif call.data == "help_ai":
         bot.answer_callback_query(call.id)
-        bot.send_message(call.message.chat.id, "🧠 اوراکل، هوش مصنوعی پیشرفته ماتریکس.")
+        bot.send_message(call.message.chat.id, "🧠 ربات اوراکل؛ طراحی شده برای مدیریت هوشمند و ارتباطات پایدار.")
     elif call.data == "help_creator":
         bot.answer_callback_query(call.id)
         bot.send_message(call.message.chat.id, "👑 سازنده: **سامان آریوبرزن**\n🔗 کانال: https://t.me/Oracle09")
@@ -221,7 +197,7 @@ def callback_handler(call):
             pass
 
 def process_user_ticket(message):
-    if message.text in ["🚀 استارت مجدد", "📖 راهنما", "📩 تیکت به مالک", "⭐ خرید VIP", "⚡ امکانات هوش مصنوعی", "📢 کانال رسمی اوراکل"]:
+    if message.text in ["🚀 استارت مجدد", "📖 راهنما", "📩 تیکت به مالک", "⭐ خرید VIP", "⚡ امکانات ربات", "📢 کانال رسمی اوراکل"]:
         handle_all_messages(message)
         return
     
