@@ -5,6 +5,7 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 
 # ================= تنظیمات اصلی =================
 TOKEN = "8832689587:AAF481lNzzQymTXtLZHgwr0SfTg9Z9kV-nU"
+BOT_NAME = "اوراکل نت | Oracle Net"
 BOT_USERNAME = "SnapGrbot"
 OWNER_ID = 8443938939
 
@@ -92,7 +93,7 @@ def get_main_menu(user_id):
     markup.add(
         KeyboardButton("🚀 دریافت کانفینگ رایگان"), KeyboardButton("⚡ دریافت پروکسی"),
         KeyboardButton("📁 کانفینگ نپستر"), KeyboardButton("🎁 اهدای کانفینگ/نپستر/پروکسی"),
-        KeyboardButton("📖 راهنما"), KeyboardButton("📢 کانال اوراکل")
+        KeyboardButton("📖 راهنما"), KeyboardButton("📢 کانال رسمی")
     )
     if is_admin(user_id):
         markup.add(KeyboardButton("👑 پنل مدیریت من"))
@@ -110,7 +111,7 @@ def handle_start(message):
         bot.send_message(message.chat.id, f"⚠️ **لطفاً ابتدا در کانال زیر عضو شوید:**\n👉 {ch_url}", reply_markup=sub_markup)
         return
 
-    bot.send_message(message.chat.id, f"سلام {message.from_user.first_name} عزیز! 🕶️\nبه ربات پرسرعت {BOT_USERNAME} خوش آمدید.", reply_markup=get_main_menu(user_id))
+    bot.send_message(message.chat.id, f"سلام {message.from_user.first_name} عزیز! 🕶️\nبه ربات پرسرعت **{BOT_NAME}** خوش آمدید.", parse_mode="Markdown", reply_markup=get_main_menu(user_id))
 
 @bot.callback_query_handler(func=lambda call: call.data == "check_sub")
 def callback_check_sub(call):
@@ -232,10 +233,10 @@ def handle_text_messages(message):
         bot.reply_to(message, "🎁 انتخاب کنید چه چیزی می‌خواهید به حافظه ربات اهدا کنید:", reply_markup=markup)
 
     elif text == "📖 راهنما":
-        bot.reply_to(message, f"📖 این ربات ({BOT_USERNAME}) مجهز به سیستم حافظه رم است و با سرعت بالا کار می‌کند.\n\nتوسعه‌دهنده: سامان آریوبرزن 👑", reply_markup=get_main_menu(user_id))
+        bot.reply_to(message, f"📖 این ربات (**{BOT_NAME}**) مجهز به سیستم حافظه رم است و با سرعت بالا کار می‌کند.\n\nتوسعه‌دهنده: سامان 👑", parse_mode="Markdown", reply_markup=get_main_menu(user_id))
 
-    elif text == "📢 کانال اوراکل":
-        bot.reply_to(message, "📢 کانال رسمی:\n👉 https://t.me/Oracle09", reply_markup=get_main_menu(user_id))
+    elif text == "📢 کانال رسمی":
+        bot.reply_to(message, "📢 کانال رسمی اوراکل نت:\n👉 https://t.me/Oracle09", reply_markup=get_main_menu(user_id))
 
     elif text == "👑 پنل مدیریت من":
         if not is_admin(user_id): return
@@ -248,7 +249,7 @@ def handle_text_messages(message):
             InlineKeyboardButton("📊 آمار حافظه رم", callback_data="admin_stats"),
             InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_user")
         )
-        bot.reply_to(message, f"👑 **پنل مدیریت پیشرفته ربات {BOT_USERNAME}:**", reply_markup=panel)
+        bot.reply_to(message, f"👑 **پنل مدیریت پیشرفته {BOT_NAME}:**", parse_mode="Markdown", reply_markup=panel)
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
@@ -374,7 +375,7 @@ def callback_handler(call):
             target_file, cache_k = NAPSTER_FILE, "napsters"
             
         add_to_memory_and_file(target_file, f"{content}|||@Oracle09", cache_k)
-        bot.send_message(call.message.chat.id, "🔥 با موفقیت مستقیماً در حافظه ربات ذخیره شد و الان قابل استفاده است!", reply_markup=get_main_menu(user_id))
+        bot.send_message(call.message.chat.id, "🔥 با موفقیت مستقیماً در حافظه رم ربات ذخیره شد و الان قابل استفاده است!", reply_markup=get_main_menu(user_id))
 
     elif data == "back_to_user":
         bot.answer_callback_query(call.id)
@@ -407,7 +408,6 @@ def callback_handler(call):
     elif data == "admin_send_to_channel":
         if not is_admin(user_id): return
         bot.answer_callback_query(call.id)
-        # اینجا از ادمین می‌خواهیم پست (متن، عکس، فایل، موزیک و...) را بفرستد
         msg = bot.send_message(call.message.chat.id, "📤 پست مورد نظر خود را بفرستید (متن، عکس، ویدیو، موزیک یا فایل).\n\nربات این پست را به همراه **دکمه شیشه‌ای دریافت کانفینگ ربات** مستقیماً به کانال اصلی ارسال می‌کند:")
         bot.register_next_step_handler(msg, process_channel_post_content)
 
@@ -488,12 +488,10 @@ def process_channel_post_content(message):
     
     target_channel = get_required_channel()
     
-    # دکمه شیشه‌ای سفارشی که کاربر روی آن کلیک کند وارد ربات می‌شود
     channel_markup = InlineKeyboardMarkup()
-    channel_markup.add(InlineKeyboardButton("🎁 دریافت کانفینگ رایگان", url=f"https://t.me/{BOT_USERNAME}"))
+    channel_markup.add(InlineKeyboardButton("🚀 دریافت کانفینگ رایگان", url=f"https://t.me/{BOT_USERNAME}"))
     
     try:
-        # پشتیبانی کامل از انواع فایل‌ها، عکس‌ها، ویدیوها، موزیک و متن فرستاده شده توسط ادمین در ربات
         if message.photo:
             bot.send_photo(target_channel, message.photo[-1].file_id, caption=message.caption, reply_markup=channel_markup)
         elif message.video:
@@ -515,5 +513,5 @@ def process_channel_post_content(message):
         bot.reply_to(message, f"❌ خطا در ارسال به کانال:\n{e}\n\n(مطمئن شوید ربات در کانال ادمین است و دسترسی ارسال پیام دارد)")
 
 if __name__ == "__main__":
-    print(f"ربات {BOT_USERNAME} با موفقیت روشن شد...")
+    print(f"ربات {BOT_NAME} با موفقیت روشن شد...")
     bot.infinity_polling(skip_pending=True)
