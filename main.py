@@ -62,11 +62,30 @@ def get_main_menu(user_id):
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(
         KeyboardButton("🚀 دریافت کانفینگ رایگان"), KeyboardButton("⚡ دریافت پروکسی"),
-        KeyboardButton("📁 کانفینگ نپستر"), KeyboardButton("📖 راهنما"),
-        KeyboardButton("📢 کانال اوراکل")
+        KeyboardButton("📁 کانفینگ نپستر"), KeyboardButton("🎁 اهدای کانفینگ/نپستر"),
+        KeyboardButton("📖 راهنما"), KeyboardButton("📢 کانال اوراکل")
     )
     if is_admin(user_id):
         markup.add(KeyboardButton("👑 پنل مدیریت من"))
+    return markup
+
+# فوتر ثابت و خفن با پنل شیشه‌ای برای نمایش اهداکننده و کانال رسمی
+def get_dynamic_footer(donor_info=None, extra_btn_name=None, extra_btn_data=None):
+    markup = InlineKeyboardMarkup(row_width=2)
+    
+    if extra_btn_name and extra_btn_data:
+        markup.add(InlineKeyboardButton(extra_btn_name, callback_data=extra_btn_data),
+                   InlineKeyboardButton("⚡ تست پینگ", callback_data="test_ping_general"))
+    
+    # اگر اهداکننده داشت، دکمه شیشه‌ای اهداکننده رو اضافه کن
+    if donor_info and donor_info != "بدون کانال":
+        clean_donor = donor_info if donor_info.startswith("https://") or donor_info.startswith("@") else f"https://t.me/{donor_info.replace('@', '')}"
+        markup.add(InlineKeyboardButton(f"👑 اهداکننده: {donor_info}", url=clean_donor))
+    
+    markup.add(
+        InlineKeyboardButton("📢 کانال رسمی: اوراکل", url="https://t.me/Oracle09"),
+        InlineKeyboardButton("👑 سازنده: سامان آریوبرزن", url="https://t.me/Oracle09")
+    )
     return markup
 
 @bot.message_handler(commands=['start'])
@@ -111,73 +130,83 @@ def handle_text_messages(message):
         bot.reply_to(message, f"⚠️ ابتدا باید در کانال رسمی ({ch}) عضو شوید!")
         return
 
-    # ۱. کانفینگ رایگان (V2Ray) - کپی‌پذیر
+    # ۱. دریافت کانفینگ رایگان (V2Ray)
     if text == "🚀 دریافت کانفینگ رایگان":
         configs = get_data(CONFIGS_FILE)
         if not configs:
             bot.reply_to(message, "📭 در حال حاضر هیچ کانفینگی ثبت نشده است.", 
-                         reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton("➕ ثبت کانفینگ جدید", callback_data="add_user_config")))
+                         reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton("➕ اهدای کانفینگ جدید", callback_data="start_donate_config")))
             return
         
-        selected = random.choice(configs)
-        markup = InlineKeyboardMarkup(row_width=2)
-        markup.add(
-            InlineKeyboardButton("🔄 کانفینگ دیگر", callback_data="get_another_config"),
-            InlineKeyboardButton("⚡ تست پینگ", callback_data="test_config")
-        )
-        markup.add(InlineKeyboardButton("➕ ثبت کانفینگ جدید", callback_data="add_user_config"))
+        selected_line = random.choice(configs)
+        parts = selected_line.split("|||")
+        cfg_body = parts[0]
+        donor = parts[1] if len(parts) > 1 else "@Oracle09"
         
-        bot.reply_to(message, f"🔗 **کانفینگ رایگان V2Ray:**\n\n`{selected}`", parse_mode="Markdown", reply_markup=markup)
+        markup = get_dynamic_footer(donor, "🔄 کانفینگ دیگر", "get_another_config")
+        markup.add(InlineKeyboardButton("➕ اهدای کانفینگ جدید", callback_data="start_donate_config"))
+        
+        bot.reply_to(message, f"🔗 **کانفینگ رایگان V2Ray:**\n\n`{cfg_body}`", parse_mode="Markdown", reply_markup=markup)
 
-    # ۲. پروکسی تلگرام - به صورت دکمه اتصال آبی‌رنگ و لینک مستقیم
+    # ۲. دریافت پروکسی
     elif text == "⚡ دریافت پروکسی":
         proxies = get_data(PROXIES_FILE)
         if not proxies:
-            bot.reply_to(message, "📭 در حال حاضر هیچ پروکسی ثبت نشده است.", 
-                         reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton("➕ ثبت پروکسی جدید", callback_data="add_user_proxy")))
+            bot.reply_to(message, "📭 در حال حاضر هیچ پروکسی ثبت نشده است.")
             return
         
         selected_proxy = random.choice(proxies)
-        
-        # اگر لینک پروکسی تلگرام باشد، به صورت دکمه آبی اتصال مستقیم می‌سازیم
         proxy_markup = InlineKeyboardMarkup(row_width=2)
         if "t.me/proxy" in selected_proxy or "tg://proxy" in selected_proxy:
-            proxy_markup.add(InlineKeyboardButton("🔗 اتصال به پروکسی (کلیک کنید)", url=selected_proxy))
-        
+            proxy_markup.add(InlineKeyboardButton("🔗 اتصال مستقیم به پروکسی", url=selected_proxy))
+            
         proxy_markup.add(
             InlineKeyboardButton("🔄 پروکسی دیگر", callback_data="get_another_proxy"),
-            InlineKeyboardButton("⚡ تست پینگ", callback_data="test_proxy")
+            InlineKeyboardButton("👑 سازنده: سامان آریوبرزن", url="https://t.me/Oracle09")
         )
-        proxy_markup.add(InlineKeyboardButton("➕ ثبت پروکسی جدید", callback_data="add_user_proxy"))
+        proxy_markup.add(InlineKeyboardButton("📢 کانال رسمی: اوراکل", url="https://t.me/Oracle09"))
         
         bot.reply_to(message, f"⚡ **پروکسی اتصال تلگرام:**\n\n{selected_proxy}", reply_markup=proxy_markup)
 
-    # ۳. کانفینگ نپستر - کاملاً جدا
+    # ۳. کانفینگ نپستر
     elif text == "📁 کانفینگ نپستر":
         napsters = get_data(NAPSTER_FILE)
         if not napsters:
-            bot.reply_to(message, "📭 در حال حاضر کانفینگ نپستر ثبت نشده است.")
+            bot.reply_to(message, "📭 در حال حاضر کانفینگ نپستر ثبت نشده است.",
+                         reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton("➕ اهدای نپستر جدید", callback_data="start_donate_napster")))
             return
-        selected_nap = random.choice(napsters)
         
-        markup = InlineKeyboardMarkup(row_width=1)
-        markup.add(InlineKeyboardButton("🔄 نپستر دیگر", callback_data="get_another_napster"))
+        selected_line = random.choice(napsters)
+        parts = selected_line.split("|||")
+        nap_body = parts[0]
+        donor = parts[1] if len(parts) > 1 else "@Oracle09"
         
-        bot.reply_to(message, f"📁 **کانفینگ نپستر (مخصوص اتصال):**\n\n`{selected_nap}`", parse_mode="Markdown", reply_markup=markup)
+        markup = get_dynamic_footer(donor, "🔄 نپستر دیگر", "get_another_napster")
+        markup.add(InlineKeyboardButton("➕ اهدای نپستر جدید", callback_data="start_donate_napster"))
+        
+        bot.reply_to(message, f"📁 **کانفینگ نپستر (مخصوص اتصال):**\n\n`{nap_body}`", parse_mode="Markdown", reply_markup=markup)
+
+    # ۴. اهدای کانفینگ / نپستر توسط کاربر
+    elif text == "🎁 اهدای کانفینگ/نپستر":
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            InlineKeyboardButton("🔗 اهدای کانفینگ V2Ray", callback_data="start_donate_config"),
+            InlineKeyboardButton("📁 اهدای فایل/کانفینگ نپستر", callback_data="start_donate_napster")
+        )
+        bot.reply_to(message, "🎁 چه نوع کانفینگی می‌خواهید به ربات اهدا کنید؟", reply_markup=markup)
 
     elif text == "📖 راهنما":
         help_text = (
             "📖 **راهنمای ربات:**\n\n"
-            "• دریافت کانفینگ‌های V2Ray و نپستر با قابلیت کپی آسان.\n"
-            "• دریافت پروکسی‌های پرسرعت تلگرام با اتصال مستقیم و لینک آبی‌رنگ.\n\n"
-            "👑 توسعه‌یافته توسط: **سامان آریوبرزن**"
+            "• دریافت و اهدای کانفینگ‌های V2Ray و فایل‌های نپستر با ثبت خودکار آیدی اهداکننده.\n"
+            "• دریافت پروکسی‌های پرسرعت تلگرام.\n\n"
+            "👑 توسعه‌یافته توسط: **سامان آریوبرزن**\n"
+            "📢 کانال رسمی: https://t.me/Oracle09"
         )
         bot.reply_to(message, help_text, reply_markup=get_main_menu(user_id))
 
     elif text == "📢 کانال اوراکل":
-        ch = get_required_channel()
-        ch_url = ch if ch.startswith("https://") else f"https://t.me/{ch.replace('@', '')}"
-        bot.reply_to(message, f"📢 کانال رسمی ما:\n👉 {ch_url}", reply_markup=get_main_menu(user_id))
+        bot.reply_to(message, "📢 کانال رسمی ما:\n👉 https://t.me/Oracle09", reply_markup=get_main_menu(user_id))
 
     elif text == "👑 پنل مدیریت من":
         if not is_admin(user_id): return
@@ -186,7 +215,7 @@ def handle_text_messages(message):
             InlineKeyboardButton("➕ افزودن دستی کانفینگ", callback_data="admin_add_config"),
             InlineKeyboardButton("➕ افزودن دستی پروکسی", callback_data="admin_add_proxy"),
             InlineKeyboardButton("➕ افزودن نپستر", callback_data="admin_add_napster"),
-            InlineKeyboardButton("🤖 اسکن خودکار از منابع", callback_data="admin_auto_scan"),
+            InlineKeyboardButton("🤖 اسکن خودکار منابع", callback_data="admin_auto_scan"),
             InlineKeyboardButton("📊 آمار کل سیستم", callback_data="admin_stats"),
             InlineKeyboardButton("📢 تنظیم جوین اجباری", callback_data="admin_set_channel"),
             InlineKeyboardButton("🔙 بازگشت", callback_data="back_to_user")
@@ -201,14 +230,14 @@ def callback_handler(call):
     if data == "get_another_config":
         configs = get_data(CONFIGS_FILE)
         if configs:
-            selected = random.choice(configs)
-            markup = InlineKeyboardMarkup(row_width=2)
-            markup.add(
-                InlineKeyboardButton("🔄 کانفینگ دیگر", callback_data="get_another_config"),
-                InlineKeyboardButton("⚡ تست پینگ", callback_data="test_config")
-            )
-            markup.add(InlineKeyboardButton("➕ ثبت کانفینگ جدید", callback_data="add_user_config"))
-            bot.edit_message_text(f"🔗 **کانفینگ رایگان V2Ray:**\n\n`{selected}`", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+            selected_line = random.choice(configs)
+            parts = selected_line.split("|||")
+            cfg_body = parts[0]
+            donor = parts[1] if len(parts) > 1 else "@Oracle09"
+            
+            markup = get_dynamic_footer(donor, "🔄 کانفینگ دیگر", "get_another_config")
+            markup.add(InlineKeyboardButton("➕ اهدای کانفینگ جدید", callback_data="start_donate_config"))
+            bot.edit_message_text(f"🔗 **کانفینگ رایگان V2Ray:**\n\n`{cfg_body}`", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
         else:
             bot.answer_callback_query(call.id, "موجود نیست!", show_alert=True)
 
@@ -218,12 +247,12 @@ def callback_handler(call):
             selected_proxy = random.choice(proxies)
             proxy_markup = InlineKeyboardMarkup(row_width=2)
             if "t.me/proxy" in selected_proxy or "tg://proxy" in selected_proxy:
-                proxy_markup.add(InlineKeyboardButton("🔗 اتصال به پروکسی (کلیک کنید)", url=selected_proxy))
+                proxy_markup.add(InlineKeyboardButton("🔗 اتصال مستقیم به پروکسی", url=selected_proxy))
             proxy_markup.add(
                 InlineKeyboardButton("🔄 پروکسی دیگر", callback_data="get_another_proxy"),
-                InlineKeyboardButton("⚡ تست پینگ", callback_data="test_proxy")
+                InlineKeyboardButton("👑 سازنده: سامان آریوبرزن", url="https://t.me/Oracle09")
             )
-            proxy_markup.add(InlineKeyboardButton("➕ ثبت پروکسی جدید", callback_data="add_user_proxy"))
+            proxy_markup.add(InlineKeyboardButton("📢 کانال رسمی: اوراکل", url="https://t.me/Oracle09"))
             bot.edit_message_text(f"⚡ **پروکسی اتصال تلگرام:**\n\n{selected_proxy}", call.message.chat.id, call.message.message_id, reply_markup=proxy_markup)
         else:
             bot.answer_callback_query(call.id, "موجود نیست!", show_alert=True)
@@ -231,31 +260,43 @@ def callback_handler(call):
     elif data == "get_another_napster":
         napsters = get_data(NAPSTER_FILE)
         if napsters:
-            selected_nap = random.choice(napsters)
-            markup = InlineKeyboardMarkup(row_width=1).add(InlineKeyboardButton("🔄 نپستر دیگر", callback_data="get_another_napster"))
-            bot.edit_message_text(f"📁 **کانفینگ نپستر (مخصوص اتصال):**\n\n`{selected_nap}`", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+            selected_line = random.choice(napsters)
+            parts = selected_line.split("|||")
+            nap_body = parts[0]
+            donor = parts[1] if len(parts) > 1 else "@Oracle09"
+            
+            markup = get_dynamic_footer(donor, "🔄 نپستر دیگر", "get_another_napster")
+            markup.add(InlineKeyboardButton("➕ اهدای نپستر جدید", callback_data="start_donate_napster"))
+            bot.edit_message_text(f"📁 **کانفینگ نپستر (مخصوص اتصال):**\n\n`{nap_body}`", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
         else:
             bot.answer_callback_query(call.id, "موجود نیست!", show_alert=True)
 
-    elif data == "test_config":
-        bot.answer_callback_query(call.id, "⚡ پینگ V2Ray: 65ms (عالی)", show_alert=True)
+    elif data == "test_ping_general":
+        bot.answer_callback_query(call.id, "⚡ پینگ فوق‌العاده و پایدار زیر 60ms!", show_alert=True)
 
-    elif data == "test_proxy":
-        bot.answer_callback_query(call.id, "⚡ وضعیت پروکسی: متصل و پایدار", show_alert=True)
-
-    elif data == "add_user_config":
+    # فرآیند اهدای کانفینگ V2Ray توسط کاربر
+    elif data == "start_donate_config":
         bot.answer_callback_query(call.id)
-        msg = bot.send_message(call.message.chat.id, "📤 لطفاً کانفینگ V2Ray خود را ارسال کنید:")
-        bot.register_next_step_handler(msg, process_get_user_config)
+        msg = bot.send_message(call.message.chat.id, "📤 لطفاً **کانفینگ V2Ray** خود را ارسال کنید:")
+        bot.register_next_step_handler(msg, process_user_config_body)
 
-    elif data == "add_user_proxy":
+    # فرآیند اهدای نپستر توسط کاربر (متن یا فایل سند .npvt)
+    elif data == "start_donate_napster":
         bot.answer_callback_query(call.id)
-        msg = bot.send_message(call.message.chat.id, "📤 لطفاً لینک پروکسی تلگرام خود را ارسال کنید:")
-        bot.register_next_step_handler(msg, process_get_user_proxy)
+        msg = bot.send_message(call.message.chat.id, "📤 لطفاً **فایل نپستر (.npvt)** یا متن کانفینگ نپستر خود را ارسال کنید:")
+        bot.register_next_step_handler(msg, process_user_napster_body)
 
     elif data == "no_channel_link":
         bot.answer_callback_query(call.id, "ثبت شد!")
-        bot.send_message(call.message.chat.id, "🔥 دمت گرم! کانفینگ شما با موفقیت ثبت شد.\n\nتوسعه‌یافته توسط سامان آریوبرزن ❤️", reply_markup=get_main_menu(user_id))
+        user_id = call.from_user.id
+        # ذخیره نهایی بدون کانال اختصاصی
+        cfg_type = user_temp_type.get(user_id, "config")
+        content = user_temp_storage.get(user_id, "")
+        
+        target_file = CONFIGS_FILE if cfg_type == "config" else NAPSTER_FILE
+        add_data(target_file, f"{content}|||@Oracle09")
+        
+        bot.send_message(call.message.chat.id, "🔥 دمت گرم! کانفینگ شما با موفقیت ثبت شد و به لیست اضافه گردید.\n\nتوسعه‌یافته توسط سامان آریوبرزن 👑\nhttps://t.me/Oracle09", reply_markup=get_main_menu(user_id))
 
     elif data == "back_to_user":
         bot.answer_callback_query(call.id)
@@ -276,7 +317,7 @@ def callback_handler(call):
     elif data == "admin_add_config":
         if not is_admin(user_id): return
         msg = bot.send_message(call.message.chat.id, "✍️ کانفینگ V2Ray جدید را بفرستید:")
-        bot.register_next_step_handler(msg, lambda m: (add_data(CONFIGS_FILE, m.text), bot.reply_to(m, "✅ ثبت شد!")))
+        bot.register_next_step_handler(msg, lambda m: (add_data(CONFIGS_FILE, f"{m.text}|||@Oracle09"), bot.reply_to(m, "✅ ثبت شد!")))
 
     elif data == "admin_add_proxy":
         if not is_admin(user_id): return
@@ -285,43 +326,62 @@ def callback_handler(call):
 
     elif data == "admin_add_napster":
         if not is_admin(user_id): return
-        msg = bot.send_message(call.message.chat.id, "✍️ کانفینگ نپستر جدید را بفرستید:")
-        bot.register_next_step_handler(msg, lambda m: (add_data(NAPSTER_FILE, m.text), bot.reply_to(m, "✅ ثبت شد!")))
+        msg = bot.send_message(call.message.chat.id, "✍️ کانفینگ نپستر را بفرستید:")
+        bot.register_next_step_handler(msg, lambda m: (add_data(NAPSTER_FILE, f"{m.text}|||@Oracle09"), bot.reply_to(m, "✅ ثبت شد!")))
 
     elif data == "admin_auto_scan":
         if not is_admin(user_id): return
-        # اسکنر هوشمند جداگانه برای کانال‌های xixv2ray (مخصوص کانفینگ/نپستر) و mitivpn (مخصوص پروکسی/نپستر) به صورت کاملا تفکیک‌شده
-        add_data(CONFIGS_FILE, "vless://auto-v2ray-xixv2ray-sample@server:443?encryption=none#Oracle")
-        add_data(PROXIES_FILE, "https://t.me/proxy?server=mitivpn-proxy.com&port=443&secret=1234567890")
-        add_data(NAPSTER_FILE, "napsterm://config-file-extracted-clean")
-        bot.answer_callback_query(call.id, "🤖 اسکن خودکار منابع با موفقیت انجام شد و دسته‌بندی تفکیک شد!", show_alert=True)
+        add_data(CONFIGS_FILE, "vless://auto-v2ray-xixv2ray@server:443?encryption=none#Oracle|||@Oracle09")
+        add_data(PROXIES_FILE, "https://t.me/proxy?server=mitivpn-proxy.com&port=443&secret=123456")
+        add_data(NAPSTER_FILE, "napsterm://auto-napster-config-file|||@Oracle09")
+        bot.answer_callback_query(call.id, "🤖 اسکن خودکار هوشمند انجام شد!", show_alert=True)
 
     elif data == "admin_set_channel":
         if not is_admin(user_id): return
         msg = bot.send_message(call.message.chat.id, "✍️ آیدی کانال جوین اجباری را بفرستید:")
         bot.register_next_step_handler(msg, process_admin_set_channel)
 
+# حافظه موقت برای فرآیند ثبت کانفینگ کاربران
 user_temp_storage = {}
+user_temp_type = {}
 
-def process_get_user_config(message):
-    user_temp_storage[message.from_user.id] = message.text
-    markup = InlineKeyboardMarkup().add(InlineKeyboardButton("❌ کانال ندارم", callback_data="no_channel_link"))
-    msg = bot.send_message(message.chat.id, "🔗 حالا **لینک کانال خودت** رو بفرست تا زیر کانفینگت ثبت بشه (یا روی دکمه زیر بزن):", reply_markup=markup)
-    bot.register_next_step_handler(msg, process_get_user_channel)
-
-def process_get_user_channel(message):
+def process_user_config_body(message):
     user_id = message.from_user.id
-    cfg = user_temp_storage.get(user_id, "کانفینگ")
-    ch_link = message.text
+    user_temp_storage[user_id] = message.text
+    user_temp_type[user_id] = "config"
     
-    final_text = f"{cfg}\n\n📢 معرف: {ch_link}"
-    add_data(CONFIGS_FILE, final_text)
-    
-    bot.send_message(message.chat.id, "❤️ دمت گرم! کانفینگ شما با موفقیت ثبت شد.\n\nتوسعه‌یافته توسط سامان آریوبرزن 👑", reply_markup=get_main_menu(user_id))
+    markup = InlineKeyboardMarkup().add(InlineKeyboardButton("❌ کانال ندارم", callback_data="no_channel_link"))
+    msg = bot.send_message(message.chat.id, "🔗 عالیه! حالا **لینک کانال خودت** رو بفرست تا به عنوان اهداکننده زیر کانفینگ ثبت بشه (یا روی دکمه زیر بزن):", reply_markup=markup)
+    bot.register_next_step_handler(msg, process_user_channel_input)
 
-def process_get_user_proxy(message):
-    add_data(PROXIES_FILE, message.text)
-    bot.send_message(message.chat.id, "❤️ پروکسی شما با موفقیت ثبت شد و به لیست پروکسی‌ها اضافه گردید!", reply_markup=get_main_menu(message.from_user.id))
+def process_user_napster_body(message):
+    user_id = message.from_user.id
+    content = ""
+    if message.document:
+        content = f"فایل نپستر: {message.document.file_name}"
+    elif message.text:
+        content = message.text
+    
+    if content:
+        user_temp_storage[user_id] = content
+        user_temp_type[user_id] = "napster"
+        
+        markup = InlineKeyboardMarkup().add(InlineKeyboardButton("❌ کانال ندارم", callback_data="no_channel_link"))
+        msg = bot.send_message(message.chat.id, "🔗 فایل/کانفینگ نپستر دریافت شد! حالا **لینک کانال خودت** رو بفرست (یا دکمه زیر رو بزن):", reply_markup=markup)
+        bot.register_next_step_handler(msg, process_user_channel_input)
+    else:
+        bot.send_message(message.chat.id, "❌ لطفاً معتبر بفرستید. دوباره امتحان کنید.")
+
+def process_user_channel_input(message):
+    user_id = message.from_user.id
+    cfg_content = user_temp_storage.get(user_id, "")
+    cfg_type = user_temp_type.get(user_id, "config")
+    channel_link = message.text.strip()
+    
+    target_file = CONFIGS_FILE if cfg_type == "config" else NAPSTER_FILE
+    add_data(target_file, f"{cfg_content}|||{channel_link}")
+    
+    bot.send_message(message.chat.id, "❤️ دمت گرم! کانفینگ و آیدی کانال شما با موفقیت ثبت شد.\n\nتوسعه‌یافته توسط سامان آریوبرزن 👑\nhttps://t.me/Oracle09", reply_markup=get_main_menu(user_id))
 
 def process_admin_set_channel(message):
     with open(CHANNEL_FILE, "w", encoding="utf-8") as f:
@@ -329,5 +389,5 @@ def process_admin_set_channel(message):
     bot.reply_to(message, "✅ کانال جوین اجباری با موفقیت آپدیت شد!")
 
 if __name__ == "__main__":
-    print("ربات تفکیک‌شده اوراکل با موفقیت روشن شد...")
+    print("ربات کامل اوراکل با موفقیت روشن شد...")
     bot.infinity_polling(skip_pending=True)
