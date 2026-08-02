@@ -1,16 +1,26 @@
 import os
 import telebot
+import google.generativeai as genai
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
 # ================= تنظیمات اصلی =================
 TOKEN = "8832689587:AAF481lNzzQymTXtLZHgwr0SfTg9Z9kV-nU"
 OWNER_ID = 8443938939
+# کلید API استاندارد و پایدار جمنای
+GEMINI_API_KEY = "AQ.Ab8RN6L-nrvLAz5phARGHbaVXZ_7EJdskw0GvCrtBA-ypPgH3A" 
 
 CHANNEL_FILE = "channel.txt"
 VIP_FILE = "vips.txt"
 ADMINS_FILE = "admins.txt"
 
 bot = telebot.TeleBot(TOKEN)
+
+# راه‌اندازی رسمی جمنای
+try:
+    genai.configure(api_key=GEMINI_API_KEY)
+    ai_model = genai.GenerativeModel("gemini-1.5-flash")
+except Exception as e:
+    print("خطا در تنظیم جمنای:", e)
 
 def get_data(file_path):
     if os.path.exists(file_path):
@@ -74,7 +84,7 @@ def handle_start(message):
         f"سلام {message.from_user.first_name} عزیز! 🕶️\n"
         "من **اوراکل** هستم؛ هوش مصنوعیِ پیشرفته‌ی ماتریکس.\n"
         "سازنده‌ی من: **سامان آریوبرزن** 👑\n\n"
-        "💬 پیام خود را بفرستید تا پاسخ دهم!"
+        "💬 هر سوالی داری بپرس تا مستقیم جواب بدم!"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_menu())
     
@@ -122,23 +132,20 @@ def handle_all_messages(message):
             return
 
         bot.send_chat_action(message.chat.id, 'typing')
-        
-        # پاسخ هوشمند و پایدار داخلی بدون نیاز به اینترنت خارجی و بدون خطا
-        lower_text = text.lower()
-        if "سلام" in lower_text or "درود" in lower_text or "هوی" in lower_text:
-            reply = f"سلام {message.from_user.first_name} عزیز! در خدمتم. چطور می‌تونم کمکت کنم؟ 🤖"
-        elif "چطوری" in lower_text or "حالت چطوره" in lower_text:
-            reply = "من یک هوش مصنوعی هستم و همیشه آماده‌ام! شما چطورید؟ 😎"
-        elif "سامان" in lower_text:
-            reply = "سامان آریوبرزن خالق و توسعه‌دهنده‌ی قدرتمند من است! 👑"
-        else:
-            reply = f"🤖 **پاسخ اوراکل:**\nپیام شما («{text}») با موفقیت در هسته ماتریکس پردازش شد. درود بر شما که با سامان آریوبرزن کار می‌کنید!"
+        try:
+            # درخواست مستقیم به هسته جمنای
+            prompt_text = f"تو هوش مصنوعی اوراکل هستی که توسط سامان آریوبرزن ساخته شده‌ای. به این پیام دوستانه و دقیق پاسخ بده: {text}"
+            response = ai_model.generate_content(prompt_text)
+            reply = response.text
+        except Exception as e:
+            print("Gemini Error:", e)
+            reply = f"سلام {message.from_user.first_name} عزیز! پیام شما دریافت شد: {text} (سازنده: سامان آریوبرزن)"
 
         bot.reply_to(message, reply, reply_markup=get_main_menu())
 
     elif message.content_type == 'photo':
         bot.send_chat_action(message.chat.id, 'upload_photo')
-        bot.reply_to(message, "🖼️ تصویر شما دریافت شد! پردازش بصری ماتریکس با موفقیت انجام شد.\n👑 توسعه‌یافته توسط سامان آریوبرزن", reply_markup=get_main_menu())
+        bot.reply_to(message, "🖼️ تصویر شما دریافت شد! اوراکل در حال تحلیل بصری است.\n👑 توسعه‌یافته توسط سامان آریوبرزن", reply_markup=get_main_menu())
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
@@ -240,5 +247,5 @@ def cmd_management(message):
         bot.reply_to(message, f"✅ کاربر `{val}` به لیست VIP اضافه شد.")
 
 if __name__ == "__main__":
-    print("ربات اوراکل با موفقیت روشن شد و آماده به کار است...")
+    print("ربات اوراکل با موفقیت روشن شد...")
     bot.infinity_polling(skip_pending=True)
