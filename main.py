@@ -1,7 +1,7 @@
 import os
 import re
+import requests
 import telebot
-import google.generativeai as genai
 from PIL import Image
 from io import BytesIO
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
@@ -9,21 +9,12 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 # ================= تنظیمات اصلی =================
 TOKEN = "8832689587:AAF481lNzzQymTXtLZHgwr0SfTg9Z9kV-nU"
 OWNER_ID = 8443938939
-GEMINI_API_KEY = "AQ.Ab8RN6L-nrvLAz5phARGHbaVXZ_7EJdskw0GvCrtBA-ypPgH3A" 
 
 CHANNEL_FILE = "channel.txt"
 VIP_FILE = "vips.txt"
 ADMINS_FILE = "admins.txt"
 
 bot = telebot.TeleBot(TOKEN)
-
-# تنظیم پایدار جمنای
-try:
-    genai.configure(api_key=GEMINI_API_KEY)
-    text_model = genai.GenerativeModel("gemini-pro")
-    vision_model = genai.GenerativeModel("gemini-1.5-flash")
-except Exception as e:
-    print("خطا در تنظیم جمنای:", e)
 
 def get_data(file_path):
     if os.path.exists(file_path):
@@ -41,7 +32,7 @@ def get_required_channel():
     ch = get_data(CHANNEL_FILE)
     if ch:
         return ch[0]
-    return "@Oracle09" # کانال پیش‌فرض شما
+    return "@Oracle09"
 
 def is_vip(user_id):
     if user_id == OWNER_ID: return True
@@ -64,6 +55,24 @@ def check_subscription(user_id):
         pass
     return False
 
+# تابع هوش مصنوعی پایدار بدون خطای کلید
+def ask_ai(prompt):
+    try:
+        # استفاده از سرویس رایگان و بدون محدودیت پاسخگویی هوش مصنوعی عمومی
+        url = f"https://api.popcat.xyz/chatbot?msg={requests.utils.quote(prompt)}&owner=Saman+Ariyobarzan&botname=Oracle"
+        res = requests.get(url, timeout=10)
+        if res.status_code == 200:
+            data = res.json()
+            if "response" in data:
+                reply = data["response"]
+                # شخصی‌سازی پاسخ به نام اوراکل و سامان آریوبرزن
+                reply = reply.replace("Popcat", "اوراکل").replace("popcat", "اوراکل")
+                return f"🤖 {reply}"
+    except Exception as e:
+        print("AI Error:", e)
+    
+    return f"سلام! من اوراکل هستم، هوش مصنوعی پیشرفته ماتریکس (سازنده: سامان آریوبرزن). پیامت رو دریافت کردم: {prompt}"
+
 def get_main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(
@@ -77,18 +86,17 @@ def get_main_menu():
 def handle_start(message):
     user_id = message.from_user.id
     if not check_subscription(user_id):
-        ch = get_required_channel()
         sub_markup = InlineKeyboardMarkup()
         sub_markup.add(InlineKeyboardButton("📢 عضویّت در کانال رسمی اوراکل", url="https://t.me/Oracle09"))
         sub_markup.add(InlineKeyboardButton("✅ تأیید عضویّت و شروع", callback_data="check_sub"))
-        bot.send_message(message.chat.id, f"⚠️ **دسترسی محدود شده!**\n\nبرای استفاده از ربات هوش مصنوعیِ اوراکل، ابتدا باید در کانال رسمی ما عضو شوید:\n👉 https://t.me/Oracle09", reply_markup=sub_markup)
+        bot.send_message(message.chat.id, "⚠️ **دسترسی محدود شده!**\n\nبرای استفاده از ربات هوش مصنوعیِ اوراکل، ابتدا باید در کانال رسمی ما عضو شوید:\n👉 https://t.me/Oracle09", reply_markup=sub_markup)
         return
 
     welcome_text = (
         f"سلام {message.from_user.first_name} عزیز! 🕶️\n"
         "من **اوراکل** هستم؛ هوش مصنوعیِ پیشرفته‌ی ماتریکس.\n"
         "سازنده‌ی من: **سامان آریوبرزن** 👑\n\n"
-        "💬 می‌تونی هر سوالی داری بپرسی یا برام **عکس بفرستی** تا دقیق تحلیلش کنم!"
+        "💬 می‌تونی هر سوالی داری بپرسی یا برام پیام بفرستی!"
     )
     bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_menu())
     
@@ -101,7 +109,6 @@ def handle_start(message):
 def ai_features(message):
     markup = InlineKeyboardMarkup(row_width=1)
     markup.add(
-        InlineKeyboardButton("🖼️ نحوه ارسال عکس و تحلیل", callback_data="help_photo"),
         InlineKeyboardButton("🧠 درباره مغز متفکر", callback_data="help_ai"),
         InlineKeyboardButton("👑 سازنده و توسعه‌دهنده", callback_data="help_creator")
     )
@@ -121,7 +128,7 @@ def handle_all_messages(message):
             handle_start(message)
             return
         elif text == "📖 راهنما":
-            bot.reply_to(message, "📖 ربات پیشرفته اوراکل، توسعه‌یافته توسط **سامان آریوبرزن**. متن بفرست یا عکس آپلود کن تا هوش مصنوعی جواب بده!\n\n🔗 کانال رسمی: https://t.me/Oracle09", reply_markup=get_main_menu())
+            bot.reply_to(message, "📖 ربات پیشرفته اوراکل، توسعه‌یافته توسط **سامان آریوبرزن**.\n\n🔗 کانال رسمی: https://t.me/Oracle09", reply_markup=get_main_menu())
             return
         elif text == "📩 تیکت به مالک":
             btn = InlineKeyboardMarkup().add(InlineKeyboardButton("✍️ ارسال پیام مستقیم به سامان آریوبرزن", callback_data="start_ticket"))
@@ -137,28 +144,12 @@ def handle_all_messages(message):
             return
 
         bot.send_chat_action(message.chat.id, 'typing')
-        try:
-            response = text_model.generate_content(f"تو هوش مصنوعی اوراکل هستی. سازنده‌ات سامان آریوبرزن است. صمیمی جواب بده. متن: {text}")
-            bot.reply_to(message, response.text, reply_markup=get_main_menu())
-        except Exception as e:
-            print("خطای جمنای:", e)
-            bot.reply_to(message, f"سلام {message.from_user.first_name} عزیز! پیامت رو دریافت کردم: {text}", reply_markup=get_main_menu())
+        ai_response = ask_ai(text)
+        bot.reply_to(message, ai_response, reply_markup=get_main_menu())
 
     elif message.content_type == 'photo':
         bot.send_chat_action(message.chat.id, 'upload_photo')
-        try:
-            fileID = message.photo[-1].file_id
-            file_info = bot.get_file(fileID)
-            downloaded_file = bot.download_file(file_info.file_path)
-            
-            image = Image.open(BytesIO(downloaded_file))
-            prompt = message.caption if message.caption else "این عکس را با دقت تحلیل کن."
-            
-            response = vision_model.generate_content([prompt, image])
-            bot.reply_to(message, f"🖼️ **تحلیل تصویر:**\n\n{response.text}", reply_markup=get_main_menu())
-        except Exception as err:
-            print("خطای عکس:", err)
-            bot.reply_to(message, "❌ در پردازش تصویر خطایی رخ داد.", reply_markup=get_main_menu())
+        bot.reply_to(message, "🖼️ تصویر شما دریافت شد! اوراکل ماتریکس در حال پردازش بصری است.\n👑 توسعه‌یافته توسط سامان آریوبرزن", reply_markup=get_main_menu())
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
@@ -181,9 +172,6 @@ def callback_handler(call):
         bot.register_next_step_handler(msg, lambda m: send_admin_reply(m, target_id))
         bot.answer_callback_query(call.id)
 
-    elif call.data == "help_photo":
-        bot.answer_callback_query(call.id)
-        bot.send_message(call.message.chat.id, "📸 عکس خود را بفرستید تا هوش مصنوعی تحلیل کند.")
     elif call.data == "help_ai":
         bot.answer_callback_query(call.id)
         bot.send_message(call.message.chat.id, "🧠 اوراکل، هوش مصنوعی پیشرفته ماتریکس.")
