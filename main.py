@@ -69,15 +69,13 @@ def get_main_menu(user_id):
         markup.add(KeyboardButton("👑 پنل مدیریت من"))
     return markup
 
-# فوتر ثابت و خفن با پنل شیشه‌ای برای نمایش اهداکننده و کانال رسمی
+# فوتر شیشه‌ای برای V2Ray و بخش‌های عمومی
 def get_dynamic_footer(donor_info=None, extra_btn_name=None, extra_btn_data=None):
     markup = InlineKeyboardMarkup(row_width=2)
-    
     if extra_btn_name and extra_btn_data:
         markup.add(InlineKeyboardButton(extra_btn_name, callback_data=extra_btn_data),
                    InlineKeyboardButton("⚡ تست پینگ", callback_data="test_ping_general"))
     
-    # اگر اهداکننده داشت، دکمه شیشه‌ای اهداکننده رو اضافه کن
     if donor_info and donor_info != "بدون کانال":
         clean_donor = donor_info if donor_info.startswith("https://") or donor_info.startswith("@") else f"https://t.me/{donor_info.replace('@', '')}"
         markup.add(InlineKeyboardButton(f"👑 اهداکننده: {donor_info}", url=clean_donor))
@@ -148,7 +146,7 @@ def handle_text_messages(message):
         
         bot.reply_to(message, f"🔗 **کانفینگ رایگان V2Ray:**\n\n`{cfg_body}`", parse_mode="Markdown", reply_markup=markup)
 
-    # ۲. دریافت پروکسی
+    # ۲. دریافت پروکسی (با دکمه اتصال مستقیم)
     elif text == "⚡ دریافت پروکسی":
         proxies = get_data(PROXIES_FILE)
         if not proxies:
@@ -168,7 +166,7 @@ def handle_text_messages(message):
         
         bot.reply_to(message, f"⚡ **پروکسی اتصال تلگرام:**\n\n{selected_proxy}", reply_markup=proxy_markup)
 
-    # ۳. کانفینگ نپستر
+    # ۳. دریافت کانفینگ نپستر (ارسال به صورت فایل واقعی .npvt)
     elif text == "📁 کانفینگ نپستر":
         napsters = get_data(NAPSTER_FILE)
         if not napsters:
@@ -178,20 +176,28 @@ def handle_text_messages(message):
         
         selected_line = random.choice(napsters)
         parts = selected_line.split("|||")
-        nap_body = parts[0]
+        file_path_or_content = parts[0]
         donor = parts[1] if len(parts) > 1 else "@Oracle09"
         
         markup = get_dynamic_footer(donor, "🔄 نپستر دیگر", "get_another_napster")
         markup.add(InlineKeyboardButton("➕ اهدای نپستر جدید", callback_data="start_donate_napster"))
         
-        bot.reply_to(message, f"📁 **کانفینگ نپستر (مخصوص اتصال):**\n\n`{nap_body}`", parse_mode="Markdown", reply_markup=markup)
+        # اگر فایل ذخیره شده باشد، به عنوان سند (Document) می‌فرستیم
+        if os.path.exists(file_path_or_content):
+            try:
+                with open(file_path_or_content, 'rb') as f:
+                    bot.send_document(message.chat.id, f, caption="📁 **فایل کانفینگ نپستر (مخصوص اتصال):**", reply_markup=markup)
+            except:
+                bot.reply_to(message, f"📁 **کانفینگ نپستر:**\n\n`{file_path_or_content}`", parse_mode="Markdown", reply_markup=markup)
+        else:
+            bot.reply_to(message, f"📁 **کانفینگ نپستر:**\n\n`{file_path_or_content}`", parse_mode="Markdown", reply_markup=markup)
 
-    # ۴. اهدای کانفینگ / نپستر توسط کاربر
+    # ۴. اهدای کانفینگ / نپستر
     elif text == "🎁 اهدای کانفینگ/نپستر":
         markup = InlineKeyboardMarkup(row_width=2)
         markup.add(
             InlineKeyboardButton("🔗 اهدای کانفینگ V2Ray", callback_data="start_donate_config"),
-            InlineKeyboardButton("📁 اهدای فایل/کانفینگ نپستر", callback_data="start_donate_napster")
+            InlineKeyboardButton("📁 اهدای فایل نپستر (.npvt)", callback_data="start_donate_napster")
         )
         bot.reply_to(message, "🎁 چه نوع کانفینگی می‌خواهید به ربات اهدا کنید؟", reply_markup=markup)
 
@@ -262,41 +268,51 @@ def callback_handler(call):
         if napsters:
             selected_line = random.choice(napsters)
             parts = selected_line.split("|||")
-            nap_body = parts[0]
+            file_path_or_content = parts[0]
             donor = parts[1] if len(parts) > 1 else "@Oracle09"
             
             markup = get_dynamic_footer(donor, "🔄 نپستر دیگر", "get_another_napster")
             markup.add(InlineKeyboardButton("➕ اهدای نپستر جدید", callback_data="start_donate_napster"))
-            bot.edit_message_text(f"📁 **کانفینگ نپستر (مخصوص اتصال):**\n\n`{nap_body}`", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+            
+            try:
+                bot.delete_message(call.message.chat.id, call.message.message_id)
+            except:
+                pass
+                
+            if os.path.exists(file_path_or_content):
+                try:
+                    with open(file_path_or_content, 'rb') as f:
+                        bot.send_document(call.message.chat.id, f, caption="📁 **فایل کانفینگ نپستر (مخصوص اتصال):**", reply_markup=markup)
+                except:
+                    bot.send_message(call.message.chat.id, f"📁 **کانفینگ نپستر:**\n\n`{file_path_or_content}`", parse_mode="Markdown", reply_markup=markup)
+            else:
+                bot.send_message(call.message.chat.id, f"📁 **کانفینگ نپستر:**\n\n`{file_path_or_content}`", parse_mode="Markdown", reply_markup=markup)
         else:
             bot.answer_callback_query(call.id, "موجود نیست!", show_alert=True)
 
     elif data == "test_ping_general":
         bot.answer_callback_query(call.id, "⚡ پینگ فوق‌العاده و پایدار زیر 60ms!", show_alert=True)
 
-    # فرآیند اهدای کانفینگ V2Ray توسط کاربر
     elif data == "start_donate_config":
         bot.answer_callback_query(call.id)
         msg = bot.send_message(call.message.chat.id, "📤 لطفاً **کانفینگ V2Ray** خود را ارسال کنید:")
         bot.register_next_step_handler(msg, process_user_config_body)
 
-    # فرآیند اهدای نپستر توسط کاربر (متن یا فایل سند .npvt)
     elif data == "start_donate_napster":
         bot.answer_callback_query(call.id)
-        msg = bot.send_message(call.message.chat.id, "📤 لطفاً **فایل نپستر (.npvt)** یا متن کانفینگ نپستر خود را ارسال کنید:")
-        bot.register_next_step_handler(msg, process_user_napster_body)
+        msg = bot.send_message(call.message.chat.id, "📤 لطفاً **فایل سند نپستر (.npvt)** خود را ارسال کنید:")
+        bot.register_next_step_handler(msg, process_user_napster_file)
 
     elif data == "no_channel_link":
         bot.answer_callback_query(call.id, "ثبت شد!")
         user_id = call.from_user.id
-        # ذخیره نهایی بدون کانال اختصاصی
         cfg_type = user_temp_type.get(user_id, "config")
         content = user_temp_storage.get(user_id, "")
         
         target_file = CONFIGS_FILE if cfg_type == "config" else NAPSTER_FILE
         add_data(target_file, f"{content}|||@Oracle09")
         
-        bot.send_message(call.message.chat.id, "🔥 دمت گرم! کانفینگ شما با موفقیت ثبت شد و به لیست اضافه گردید.\n\nتوسعه‌یافته توسط سامان آریوبرزن 👑\nhttps://t.me/Oracle09", reply_markup=get_main_menu(user_id))
+        bot.send_message(call.message.chat.id, "🔥 دمت گرم! کانفینگ شما با موفقیت ثبت شد.\n\nتوسعه‌یافته توسط سامان آریوبرزن 👑\nhttps://t.me/Oracle09", reply_markup=get_main_menu(user_id))
 
     elif data == "back_to_user":
         bot.answer_callback_query(call.id)
@@ -306,7 +322,6 @@ def callback_handler(call):
             pass
         bot.send_message(call.message.chat.id, "به پنل کاربری برگشتید:", reply_markup=get_main_menu(user_id))
 
-    # پنل مدیریت
     elif data == "admin_stats":
         if not is_admin(user_id): return
         total_cfgs = len(get_data(CONFIGS_FILE))
@@ -326,22 +341,21 @@ def callback_handler(call):
 
     elif data == "admin_add_napster":
         if not is_admin(user_id): return
-        msg = bot.send_message(call.message.chat.id, "✍️ کانفینگ نپستر را بفرستید:")
-        bot.register_next_step_handler(msg, lambda m: (add_data(NAPSTER_FILE, f"{m.text}|||@Oracle09"), bot.reply_to(m, "✅ ثبت شد!")))
+        msg = bot.send_message(call.message.chat.id, "✍️ فایل نپستر (.npvt) خود را بفرستید:")
+        bot.register_next_step_handler(msg, process_admin_napster_file)
 
     elif data == "admin_auto_scan":
         if not is_admin(user_id): return
-        add_data(CONFIGS_FILE, "vless://auto-v2ray-xixv2ray@server:443?encryption=none#Oracle|||@Oracle09")
-        add_data(PROXIES_FILE, "https://t.me/proxy?server=mitivpn-proxy.com&port=443&secret=123456")
-        add_data(NAPSTER_FILE, "napsterm://auto-napster-config-file|||@Oracle09")
-        bot.answer_callback_query(call.id, "🤖 اسکن خودکار هوشمند انجام شد!", show_alert=True)
+        add_data(CONFIGS_FILE, "vless://auto-v2ray@server:443?encryption=none#Oracle|||@Oracle09")
+        add_data(PROXIES_FILE, "https://t.me/proxy?server=proxy.oracle-server.com&port=443&secret=123456")
+        add_data(NAPSTER_FILE, "sample_napster.npvt|||@Oracle09")
+        bot.answer_callback_query(call.id, "🤖 اسکن خودکار انجام شد!", show_alert=True)
 
     elif data == "admin_set_channel":
         if not is_admin(user_id): return
         msg = bot.send_message(call.message.chat.id, "✍️ آیدی کانال جوین اجباری را بفرستید:")
         bot.register_next_step_handler(msg, process_admin_set_channel)
 
-# حافظه موقت برای فرآیند ثبت کانفینگ کاربران
 user_temp_storage = {}
 user_temp_type = {}
 
@@ -351,26 +365,29 @@ def process_user_config_body(message):
     user_temp_type[user_id] = "config"
     
     markup = InlineKeyboardMarkup().add(InlineKeyboardButton("❌ کانال ندارم", callback_data="no_channel_link"))
-    msg = bot.send_message(message.chat.id, "🔗 عالیه! حالا **لینک کانال خودت** رو بفرست تا به عنوان اهداکننده زیر کانفینگ ثبت بشه (یا روی دکمه زیر بزن):", reply_markup=markup)
+    msg = bot.send_message(message.chat.id, "🔗 عالیه! حالا **لینک کانال خودت** رو بفرست تا به عنوان اهداکننده ثبت بشه (یا روی دکمه زیر بزن):", reply_markup=markup)
     bot.register_next_step_handler(msg, process_user_channel_input)
 
-def process_user_napster_body(message):
+# دریافت فایل نپستر از کاربر
+def process_user_napster_file(message):
     user_id = message.from_user.id
-    content = ""
     if message.document:
-        content = f"فایل نپستر: {message.document.file_name}"
-    elif message.text:
-        content = message.text
-    
-    if content:
-        user_temp_storage[user_id] = content
+        file_info = bot.get_file(message.document.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        
+        file_name = f"napster_{user_id}_{random.randint(1000,9999)}.npvt"
+        with open(file_name, 'wb') as new_file:
+            new_file.write(downloaded_file)
+            
+        user_temp_storage[user_id] = file_name
         user_temp_type[user_id] = "napster"
         
         markup = InlineKeyboardMarkup().add(InlineKeyboardButton("❌ کانال ندارم", callback_data="no_channel_link"))
-        msg = bot.send_message(message.chat.id, "🔗 فایل/کانفینگ نپستر دریافت شد! حالا **لینک کانال خودت** رو بفرست (یا دکمه زیر رو بزن):", reply_markup=markup)
+        msg = bot.send_message(message.chat.id, "🔗 فایل نپستر دریافت شد! حالا **لینک کانال خودت** رو بفرست (یا دکمه زیر رو بزن):", reply_markup=markup)
         bot.register_next_step_handler(msg, process_user_channel_input)
     else:
-        bot.send_message(message.chat.id, "❌ لطفاً معتبر بفرستید. دوباره امتحان کنید.")
+        msg = bot.send_message(message.chat.id, "❌ لطفاً حتماً فایل سند (.npvt) بفرستید. دوباره امتحان کنید:")
+        bot.register_next_step_handler(msg, process_user_napster_file)
 
 def process_user_channel_input(message):
     user_id = message.from_user.id
@@ -381,7 +398,22 @@ def process_user_channel_input(message):
     target_file = CONFIGS_FILE if cfg_type == "config" else NAPSTER_FILE
     add_data(target_file, f"{cfg_content}|||{channel_link}")
     
-    bot.send_message(message.chat.id, "❤️ دمت گرم! کانفینگ و آیدی کانال شما با موفقیت ثبت شد.\n\nتوسعه‌یافته توسط سامان آریوبرزن 👑\nhttps://t.me/Oracle09", reply_markup=get_main_menu(user_id))
+    bot.send_message(message.chat.id, "❤️ دمت گرم! فایل نپستر و آیدی کانال شما با موفقیت ثبت شد.\n\nتوسعه‌یافته توسط سامان آریوبرزن 👑\nhttps://t.me/Oracle09", reply_markup=get_main_menu(user_id))
+
+# دریافت فایل نپستر توسط ادمین
+def process_admin_napster_file(message):
+    if message.document:
+        file_info = bot.get_file(message.document.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        
+        file_name = f"admin_napster_{random.randint(1000,9999)}.npvt"
+        with open(file_name, 'wb') as new_file:
+            new_file.write(downloaded_file)
+            
+        add_data(NAPSTER_FILE, f"{file_name}|||@Oracle09")
+        bot.reply_to(message, "✅ فایل نپستر ادمین با موفقیت ذخیره شد!")
+    else:
+        bot.reply_to(message, "❌ لطفاً فایل سند (.npvt) ارسال کنید.")
 
 def process_admin_set_channel(message):
     with open(CHANNEL_FILE, "w", encoding="utf-8") as f:
@@ -389,5 +421,5 @@ def process_admin_set_channel(message):
     bot.reply_to(message, "✅ کانال جوین اجباری با موفقیت آپدیت شد!")
 
 if __name__ == "__main__":
-    print("ربات کامل اوراکل با موفقیت روشن شد...")
+    print("ربات حرفه‌ای اوراکل با موفقیت روشن شد...")
     bot.infinity_polling(skip_pending=True)
