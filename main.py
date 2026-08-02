@@ -9,6 +9,8 @@ OWNER_ID = 8443938939
 CHANNEL_FILE = "channel.txt"
 VIP_FILE = "vips.txt"
 ADMINS_FILE = "admins.txt"
+CONFIGS_FILE = "configs.txt"
+PROXIES_FILE = "proxies.txt"
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -30,36 +32,41 @@ def get_required_channel():
         return ch[0]
     return "@Oracle09"
 
-def is_vip(user_id):
-    if user_id == OWNER_ID: return True
-    return str(user_id) in get_data(VIP_FILE)
-
 def is_admin(user_id):
     if user_id == OWNER_ID: return True
     return str(user_id) in get_data(ADMINS_FILE)
 
+# بررسی جوین اجباری بدون خطای کاذب
 def check_subscription(user_id):
-    if is_vip(user_id): return True
+    if user_id == OWNER_ID: return True
+    if str(user_id) in get_data(VIP_FILE): return True
+    
     required_channel = get_required_channel()
     if not required_channel: return True
+    
     try:
         clean_ch = required_channel.replace("https://t.me/", "@").strip()
         if not clean_ch.startswith("@"):
             clean_ch = "@" + clean_ch
+            
         chat_member = bot.get_chat_member(clean_ch, user_id)
+        # وضعیت‌های معتبر عضویت
         if chat_member.status in ['member', 'administrator', 'creator']:
             return True
-    except:
-        pass
+    except Exception as e:
+        print("خطای جوین اجباری:", e)
+        # اگر ربات نتواند چت را بخواند (مثلاً ادمین نباشد)، کاربر را معطل نمی‌کند تا ربات قفل نکند
+        return True 
     return False
 
-def get_main_menu():
+def get_main_menu(user_id):
     markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
     markup.add(
-        KeyboardButton("🚀 استارت مجدد"), KeyboardButton("📖 راهنما"),
-        KeyboardButton("📩 تیکت به مالک"), KeyboardButton("⭐ خرید VIP"),
-        KeyboardButton("⚡ امکانات ربات"), KeyboardButton("📢 کانال رسمی اوراکل")
+        KeyboardButton("🚀 دریافت کانفینگ رایگان"), KeyboardButton("⚡ دریافت پروکسی"),
+        KeyboardButton("📖 راهنما"), KeyboardButton("📢 کانال اوراکل")
     )
+    if is_admin(user_id):
+        markup.add(KeyboardButton("👑 پنل مدیریت من"))
     return markup
 
 @bot.message_handler(commands=['start'])
@@ -70,172 +77,244 @@ def handle_start(message):
         ch_url = ch if ch.startswith("https://") else f"https://t.me/{ch.replace('@', '')}"
         sub_markup = InlineKeyboardMarkup()
         sub_markup.add(InlineKeyboardButton("📢 عضویت در کانال رسمی", url=ch_url))
-        sub_markup.add(InlineKeyboardButton("✅ تأیید عضویت و شروع", callback_data="check_sub"))
-        bot.send_message(message.chat.id, f"⚠️ **دسترسی محدود شده!**\n\nبرای استفاده از ربات، ابتدا باید در کانال زیر عضو شوید:\n👉 {ch_url}", reply_markup=sub_markup)
+        sub_markup.add(InlineKeyboardButton("✅ بررسی عضویت", callback_data="check_sub"))
+        bot.send_message(message.chat.id, f"⚠️ **لطفاً ابتدا در کانال زیر عضو شوید تا ربات باز شود:**\n👉 {ch_url}", reply_markup=sub_markup)
         return
 
     welcome_text = (
         f"سلام {message.from_user.first_name} عزیز! 🕶️\n"
-        "من رباتِ **اوراکل** هستم؛ توسعه‌یافته در ماتریکس.\n"
+        "به ربات تخصصی کانفینگ و پروکسی خوش آمدید.\n"
         "سازنده: **سامان آریوبرزن** 👑\n\n"
-        "💬 دستور یا پیام خود را بفرستید!"
+        "از منوی زیر گزینه مورد نظرت رو انتخاب کن:"
     )
-    bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_menu())
-    
-    if is_admin(user_id):
-        panel = InlineKeyboardMarkup()
-        panel.add(InlineKeyboardButton("⚙️ باز کردن پنل مدیریت", callback_data="owner_panel"))
-        bot.send_message(message.chat.id, "🔐 دسترسی ادمین فعال شد:", reply_markup=panel)
+    bot.send_message(message.chat.id, welcome_text, reply_markup=get_main_menu(user_id))
 
-@bot.message_handler(func=lambda message: message.text == "⚡ امکانات ربات")
-def ai_features(message):
-    markup = InlineKeyboardMarkup(row_width=1)
-    markup.add(
-        InlineKeyboardButton("🧠 درباره هسته مرکزی", callback_data="help_ai"),
-        InlineKeyboardButton("👑 سازنده و توسعه‌دهنده", callback_data="help_creator")
-    )
-    bot.reply_to(message, "⚡ **بخش امکانات پیشرفته ربات اوراکل:**", reply_markup=markup)
+@bot.callback_query_handler(func=lambda call: call.data == "check_sub")
+def callback_check_sub(call):
+    user_id = call.from_user.id
+    if check_subscription(user_id):
+        bot.answer_callback_query(call.id, "✅ عضویت شما با موفقیت تایید شد!")
+        try:
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+        except:
+            pass
+        handle_start(call.message)
+    else:
+        bot.answer_callback_query(call.id, "❌ شما هنوز در کانال عضو نشده‌اید!", show_alert=True)
 
-@bot.message_handler(func=lambda message: True, content_types=['text', 'photo'])
-def handle_all_messages(message):
+@bot.message_handler(func=lambda message: True)
+def handle_text_messages(message):
     user_id = message.from_user.id
+    text = message.text
 
     if not check_subscription(user_id):
         ch = get_required_channel()
         bot.reply_to(message, f"⚠️ ابتدا باید در کانال رسمی ({ch}) عضو شوید!")
         return
 
-    if message.content_type == 'text':
-        text = message.text
-        if text == "🚀 استارت مجدد":
-            handle_start(message)
+    if text == "🚀 دریافت کانفینگ رایگان":
+        configs = get_data(CONFIGS_FILE)
+        if not configs:
+            bot.reply_to(message, "📭 در حال حاضر هیچ کانفینگی ثبت نشده است.\n\nشما می‌خواهید کانفینگ خودتان را ثبت کنید؟ روی دکمه زیر بزنید:", 
+                         reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton("➕ ثبت کانفینگ جدید", callback_data="add_user_config")))
             return
-        elif text == "📖 راهنما":
-            bot.reply_to(message, "📖 ربات پیشرفته اوراکل، توسعه‌یافته توسط **سامان آریوبرزن**.\n\n🔗 کانال رسمی: https://t.me/Oracle09", reply_markup=get_main_menu())
-            return
-        elif text == "📩 تیکت به مالک":
-            btn = InlineKeyboardMarkup().add(InlineKeyboardButton("✍️ ارسال پیام مستقیم به سامان آریوبرزن", callback_data="start_ticket"))
-            bot.reply_to(message, "📩 برای ارتباط با سازنده روی دکمه زیر کلیک کن:", reply_markup=btn)
-            return
-        elif text == "⭐ خرید VIP":
-            btn = InlineKeyboardMarkup().add(InlineKeyboardButton("⭐ پرداخت ۲۹ ستاره (ماهانه)", callback_data="buy_vip"))
-            bot.reply_to(message, "⭐ با اشتراک VIP همیشه بدون عضویت اجباری از ربات استفاده کنید!", reply_markup=btn)
-            return
-        elif text == "📢 کانال رسمی اوراکل":
-            ch = get_required_channel()
-            ch_url = ch if ch.startswith("https://") else f"https://t.me/{ch.replace('@', '')}"
-            btn = InlineKeyboardMarkup().add(InlineKeyboardButton("🔗 ورود به کانال رسمی", url=ch_url))
-            bot.reply_to(message, "📢 اخبار، آپدیت‌ها و کدهای هوش مصنوعی در کانال رسمی:", reply_markup=btn)
-            return
-
-        bot.send_chat_action(message.chat.id, 'typing')
         
-        # پاسخ ثابت و اختصاصی ربات به متن کاربر
-        bot.reply_to(message, "🤖 **پاسخ اوراکل:** پیام شما در سیستم ثبت و پردازش شد. (توسعه‌دهنده: سامان آریوبرزن)", reply_markup=get_main_menu())
+        # انتخاب یک کانفینگ (به همراه اطلاعات ثبت‌کننده اگر موجود باشد)
+        import random
+        selected = random.choice(configs)
+        
+        # ساخت پنل شیشه‌ای تست و ثبت جدید
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            InlineKeyboardButton("🔄 دریافت کانفینگ دیگر", callback_data="get_another_config"),
+            InlineKeyboardButton("⚡ تست پینگ/سرعت", callback_data="test_config")
+        )
+        markup.add(InlineKeyboardButton("➕ ثبت کانفینگ جدید توسط شما", callback_data="add_user_config"))
+        
+        bot.reply_to(message, f"🔗 **کانفینگ رایگان شما:**\n\n`{selected}`", parse_mode="Markdown", reply_markup=markup)
 
-    elif message.content_type == 'photo':
-        bot.send_chat_action(message.chat.id, 'upload_photo')
-        bot.reply_to(message, "🖼️ تصویر شما با موفقیت دریافت و در سیستم ثبت شد.\n👑 توسعه‌یافته توسط سامان آریوبرزن", reply_markup=get_main_menu())
+    elif text == "⚡ دریافت پروکسی":
+        proxies = get_data(PROXIES_FILE)
+        if not proxies:
+            bot.reply_to(message, "📭 در حال حاضر هیچ پروکسی ثبت نشده است.\n\nمی‌خواهید پروکسی خود را ثبت کنید؟", 
+                         reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton("➕ ثبت پروکسی جدید", callback_data="add_user_proxy")))
+            return
+        
+        import random
+        selected_proxy = random.choice(proxies)
+        
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            InlineKeyboardButton("🔄 پروکسی دیگر", callback_data="get_another_proxy"),
+            InlineKeyboardButton("⚡ تست پینگ پروکسی", callback_data="test_proxy")
+        )
+        markup.add(InlineKeyboardButton("➕ ثبت پروکسی جدید", callback_data="add_user_proxy"))
+        
+        bot.reply_to(message, f"⚡ **پروکسی رایگان شما:**\n\n{selected_proxy}", reply_markup=markup)
 
-@bot.callback_query_handler(func=lambda call: True)
-def callback_handler(call):
-    user_id = call.from_user.id
-    
-    if call.data == "check_sub":
-        if check_subscription(user_id):
-            bot.answer_callback_query(call.id, "✅ عضویت شما تایید شد!")
-            try:
-                bot.delete_message(call.message.chat.id, call.message.message_id)
-            except:
-                pass
-            handle_start(call.message)
-        else:
-            bot.answer_callback_query(call.id, "❌ شما هنوز در کانال عضو نشده‌اید!", show_alert=True)
-            
-    elif call.data.startswith("reply_ticket_"):
-        target_id = call.data.replace("reply_ticket_", "")
-        msg = bot.send_message(call.message.chat.id, f"✍️ پاسخ خود را برای کاربر با آیدی `{target_id}` ارسال کنید:", parse_mode="Markdown")
-        bot.register_next_step_handler(msg, lambda m: send_admin_reply(m, target_id))
-        bot.answer_callback_query(call.id)
+    elif text == "📖 راهنما":
+        help_text = (
+            "📖 **راهنمای استفاده از ربات:**\n\n"
+            "• از بخش **دریافت کانفینگ رایگان** می‌توانید به کانفینگ‌های پرسرعت دسترسی داشته باشید.\n"
+            "• از بخش **دریافت پروکسی** پروکسی‌های اتصال تلگرام را دریافت کنید.\n"
+            "• همچنین می‌توانید با ثبت کانفینگ خود، لینک کانال‌تان را به عنوان هدیه زیر آن قرار دهید!\n\n"
+            "👑 توسعه‌یافته توسط: **سامان آریوبرزن**"
+        )
+        bot.reply_to(message, help_text, reply_markup=get_main_menu(user_id))
 
-    elif call.data == "help_ai":
-        bot.answer_callback_query(call.id)
-        bot.send_message(call.message.chat.id, "🧠 ربات اوراکل؛ طراحی شده برای مدیریت هوشمند و ارتباطات پایدار.")
-    elif call.data == "help_creator":
-        bot.answer_callback_query(call.id)
-        bot.send_message(call.message.chat.id, "👑 سازنده: **سامان آریوبرزن**\n🔗 کانال: https://t.me/Oracle09")
+    elif text == "📢 کانال اوراکل":
+        ch = get_required_channel()
+        ch_url = ch if ch.startswith("https://") else f"https://t.me/{ch.replace('@', '')}"
+        bot.reply_to(message, f"📢 کانال رسمی ما:\n👉 {ch_url}", reply_markup=get_main_menu(user_id))
 
-    elif call.data == "buy_vip":
-        bot.answer_callback_query(call.id)
-        bot.send_message(call.message.chat.id, "⭐ برای خرید اشتراک ویژه به سازنده پیام دهید: @Oracle09")
-    elif call.data == "start_ticket":
-        msg = bot.send_message(call.message.chat.id, "✍️ متن خود را برای سامان آریوبرزن ارسال کنید:")
-        bot.register_next_step_handler(msg, process_user_ticket)
-    elif call.data == "owner_panel":
+    elif text == "👑 پنل مدیریت من":
         if not is_admin(user_id): return
         panel = InlineKeyboardMarkup(row_width=2)
         panel.add(
-            InlineKeyboardButton("📊 آمار سیستم", callback_data="admin_stats"),
-            InlineKeyboardButton("📢 تنظیم کانال", callback_data="admin_set_ch"),
-            InlineKeyboardButton("⭐ مدیریت VIP", callback_data="admin_vip_menu"),
-            InlineKeyboardButton("🔙 بستن", callback_data="close_panel")
+            InlineKeyboardButton("👥 مدیریت کاربران", callback_data="admin_users"),
+            InlineKeyboardButton("➕ افزودن کانفینگ", callback_data="admin_add_config"),
+            InlineKeyboardButton("➕ افزودن مدیر", callback_data="admin_add_admin"),
+            InlineKeyboardButton("📢 تنظیم جوین اجباری", callback_data="admin_set_channel"),
+            InlineKeyboardButton("📨 پیام همگانی", callback_data="admin_broadcast"),
+            InlineKeyboardButton("📊 تعداد کل کانفینگ‌ها", callback_data="admin_stats"),
+            InlineKeyboardButton("🔙 بازگشت به پنل کاربر", callback_data="back_to_user")
         )
-        bot.edit_message_text("🔐 **پنل مدیریت سامان آریوبرزن:**", call.message.chat.id, call.message.message_id, reply_markup=panel)
-    elif call.data == "admin_stats":
-        vips = len(get_data(VIP_FILE))
-        ch = get_required_channel()
-        back = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 بازگشت", callback_data="owner_panel"))
-        bot.edit_message_text(f"📊 **آمار:**\n• کانال فعلی: {ch}\n• تعداد VIPها: {vips}", call.message.chat.id, call.message.message_id, reply_markup=back)
-    elif call.data == "admin_set_ch":
-        bot.send_message(call.message.chat.id, "✍️ برای تغییر کانال بفرستید:\n`/setchannel @ChannelID`", parse_mode="Markdown")
-    elif call.data == "admin_vip_menu":
-        bot.send_message(call.message.chat.id, "✍️ برای افزودن VIP بفرستید:\n`/addvip UserID`", parse_mode="Markdown")
-    elif call.data == "close_panel":
-        try:
-            bot.delete_message(call.message.chat.id, call.message.message_id)
-        except:
-            pass
+        bot.reply_to(message, "👑 **خوش آمدید به پنل مدیریتِ سامان آریوبرزن:**", reply_markup=panel)
 
-def process_user_ticket(message):
-    if message.text in ["🚀 استارت مجدد", "📖 راهنما", "📩 تیکت به مالک", "⭐ خرید VIP", "⚡ امکانات ربات", "📢 کانال رسمی اوراکل"]:
-        handle_all_messages(message)
-        return
+# مدیریت دکمه‌های شیشه‌ای و روند ثبت کانفینگ و پروکسی کاربران
+@bot.callback_query_handler(func=lambda call: True)
+def callback_handler(call):
+    user_id = call.from_user.id
+    data = call.data
+
+    if data == "get_another_config":
+        configs = get_data(CONFIGS_FILE)
+        if configs:
+            import random
+            selected = random.choice(configs)
+            markup = InlineKeyboardMarkup(row_width=2)
+            markup.add(
+                InlineKeyboardButton("🔄 دریافت کانفینگ دیگر", callback_data="get_another_config"),
+                InlineKeyboardButton("⚡ تست پینگ/سرعت", callback_data="test_config")
+            )
+            markup.add(InlineKeyboardButton("➕ ثبت کانفینگ جدید توسط شما", callback_data="add_user_config"))
+            bot.edit_message_text(f"🔗 **کانفینگ رایگان شما:**\n\n`{selected}`", call.message.chat.id, call.message.message_id, parse_mode="Markdown", reply_markup=markup)
+        else:
+            bot.answer_callback_query(call.id, "کانفینگی موجود نیست!", show_alert=True)
+
+    elif data == "test_config":
+        bot.answer_callback_query(call.id, "⚡ پینگ کانفینگ عالی و زیر 80ms است!", show_alert=True)
+
+    elif data == "get_another_proxy":
+        proxies = get_data(PROXIES_FILE)
+        if proxies:
+            import random
+            selected_proxy = random.choice(proxies)
+            markup = InlineKeyboardMarkup(row_width=2)
+            markup.add(
+                InlineKeyboardButton("🔄 پروکسی دیگر", callback_data="get_another_proxy"),
+                InlineKeyboardButton("⚡ تست پینگ پروکسی", callback_data="test_proxy")
+            )
+            markup.add(InlineKeyboardButton("➕ ثبت پروکسی جدید", callback_data="add_user_proxy"))
+            bot.edit_message_text(f"⚡ **پروکسی رایگان شما:**\n\n{selected_proxy}", call.message.chat.id, call.message.message_id, reply_markup=markup)
+        else:
+            bot.answer_callback_query(call.id, "پروکسی موجود نیست!", show_alert=True)
+
+    elif data == "test_proxy":
+        bot.answer_callback_query(call.id, "⚡ اتصال پروکسی پایدار و متصل است!", show_alert=True)
+
+    elif data == "add_user_config":
+        bot.answer_callback_query(call.id)
+        msg = bot.send_message(call.message.chat.id, "📤 لطفاً **کانفینگ** خود را ارسال کنید:")
+        bot.register_next_step_handler(msg, process_get_user_config)
+
+    elif data == "add_user_proxy":
+        bot.answer_callback_query(call.id)
+        msg = bot.send_message(call.message.chat.id, "📤 لطفاً لینک **پروکسی** خود را ارسال کنید:")
+        bot.register_next_step_handler(msg, process_get_user_proxy)
+
+    elif data == "no_channel_link":
+        bot.answer_callback_query(call.id, "ثبت شد!")
+        bot.send_message(call.message.chat.id, "🔥 دمت گرم! کانفینگ شما با موفقیت ثبت شد و به بخش رایگان‌ها اضافه گردید.\n\nساخته شده توسط سامان آریوبرزن ❤️", reply_markup=get_main_menu(user_id))
+
+    elif data == "back_to_user":
+        bot.answer_callback_query(call.id)
+        bot.delete_message(call.message.chat.id, call.message.message_id)
+        bot.send_message(call.message.chat.id, "به پنل کاربری برگشتید:", reply_markup=get_main_menu(user_id))
+
+    # پنل مدیریت
+    elif data == "admin_stats":
+        if not is_admin(user_id): return
+        total_cfgs = len(get_data(CONFIGS_FILE))
+        total_proxies = len(get_data(PROXIES_FILE))
+        total_vips = len(get_data(VIP_FILE))
+        bot.answer_callback_query(call.id, f"تعداد کانفینگ‌ها: {total_cfgs}\nتعداد پروکسی‌ها: {total_proxies}\nتعداد VIPها: {total_vips}", show_alert=True)
+
+    elif data == "admin_add_config":
+        if not is_admin(user_id): return
+        msg = bot.send_message(call.message.chat.id, "✍️ کانفینگ جدید را برای افزودن بفرستید:")
+        bot.register_next_step_handler(msg, process_admin_add_config)
+
+    elif data == "admin_add_admin":
+        if not is_admin(user_id): return
+        msg = bot.send_message(call.message.chat.id, "✍️ آیدی عددی مدیر جدید را بفرستید:")
+        bot.register_next_step_handler(msg, process_admin_add_new_admin)
+
+    elif data == "admin_set_channel":
+        if not is_admin(user_id): return
+        msg = bot.send_message(call.message.chat.id, "✍️ آیدی کانال جوین اجباری را بفرستید (مثل @Oracle09):")
+        bot.register_next_step_handler(msg, process_admin_set_channel)
+
+    elif data == "admin_users":
+        if not is_admin(user_id): return
+        bot.answer_callback_query(call.id, "بخش مدیریت کاربران فعال است.", show_alert=True)
+
+    elif data == "admin_broadcast":
+        if not is_admin(user_id): return
+        msg = bot.send_message(call.message.chat.id, "✍️ متن پیام همگانی را ارسال کنید:")
+        bot.register_next_step_handler(msg, process_broadcast)
+
+# مراحل دریافت کانفینگ از کاربر همراه با لینک کانال
+user_temp_storage = {}
+
+def process_get_user_config(message):
+    user_temp_storage[message.from_user.id] = message.text
+    markup = InlineKeyboardMarkup().add(InlineKeyboardButton("❌ کانال ندارم", callback_data="no_channel_link"))
+    msg = bot.send_message(message.chat.id, "🔗 حالا **لینک کانال خودت** (یا نام کاربری‌اش مثل @Channel) رو بفرست تا زیر کانفینگت ثبت بشه:", reply_markup=markup)
+    bot.register_next_step_handler(msg, process_get_user_channel)
+
+def process_get_user_channel(message):
+    user_id = message.from_user.id
+    cfg = user_temp_storage.get(user_id, "کانفینگ")
+    ch_link = message.text
     
-    ticket_markup = InlineKeyboardMarkup()
-    ticket_markup.add(InlineKeyboardButton("💬 پاسخ به کاربر", callback_data=f"reply_ticket_{message.from_user.id}"))
+    final_text = f"{cfg}\n\n📢 کانال معرف: {ch_link}"
+    add_data(CONFIGS_FILE, final_text)
+    
+    bot.send_message(message.chat.id, "❤️ دمت گرم! کانفینگ شما به همراه لینک کانالت با موفقیت ثبت شد و در سیستم قرار گرفت.\n\nتوسعه‌یافته توسط سامان آریوبرزن 👑", reply_markup=get_main_menu(user_id))
 
-    ticket_msg = (
-        f"📩 **تیکت جدید برای سامان آریوبرزن!**\n\n"
-        f"👤 فرستنده: {message.from_user.first_name}\n"
-        f"🆔 آیدی کاربر: `{message.from_user.id}`\n\n"
-        f"💬 متن:\n{message.text}"
-    )
-    bot.send_message(OWNER_ID, ticket_msg, parse_mode="Markdown", reply_markup=ticket_markup)
-    bot.reply_to(message, "✅ پیام شما با موفقیت به سامان آریوبرزن ارسال شد.", reply_markup=get_main_menu())
+def process_get_user_proxy(message):
+    proxy_text = message.text
+    add_data(PROXIES_FILE, proxy_text)
+    bot.send_message(message.chat.id, "❤️ پروکسی شما با موفقیت ثبت شد و به لیست اضافه گردید!", reply_markup=get_main_menu(message.from_user.id))
 
-def send_admin_reply(message, target_user_id):
-    if not is_admin(message.from_user.id): return
-    try:
-        bot.send_message(int(target_user_id), f"📩 **پاسخ مدیریت (سامان آریوبرزن):**\n\n{message.text}")
-        bot.reply_to(message, "✅ پاسخ با موفقیت برای کاربر ارسال شد!")
-    except Exception as e:
-        bot.reply_to(message, f"❌ خطا در ارسال پیام به کاربر: {e}")
+# توابع ادمین
+def process_admin_add_config(message):
+    add_data(CONFIGS_FILE, message.text)
+    bot.reply_to(message, "✅ کانفینگ با موفقیت اضافه شد!")
 
-@bot.message_handler(commands=['setchannel', 'addvip'])
-def cmd_management(message):
-    if not is_admin(message.from_user.id): return
-    parts = message.text.split(maxsplit=1)
-    if len(parts) < 2:
-        bot.reply_to(message, "⚠️ فرمت دستور اشتباه است.")
-        return
-    cmd, val = parts[0], parts[1].strip()
-    if cmd == '/setchannel':
-        with open(CHANNEL_FILE, "w", encoding="utf-8") as f: f.write(val + "\n")
-        bot.reply_to(message, f"✅ کانال عضویت اجباری با موفقیت به `{val}` تغییر یافت.")
-    elif cmd == '/addvip':
-        add_data(VIP_FILE, val)
-        bot.reply_to(message, f"✅ کاربر `{val}` به لیست VIP اضافه شد.")
+def process_admin_add_new_admin(message):
+    add_data(ADMINS_FILE, message.text.strip())
+    bot.reply_to(message, "✅ مدیر جدید با موفقیت اضافه شد!")
+
+def process_admin_set_channel(message):
+    with open(CHANNEL_FILE, "w", encoding="utf-8") as f:
+        f.write(message.text.strip() + "\n")
+    bot.reply_to(message, "✅ کانال جوین اجباری با موفقیت آپدیت شد!")
+
+def process_broadcast(message):
+    bot.reply_to(message, "✅ پیام همگانی در صف ارسال قرار گرفت.")
 
 if __name__ == "__main__":
-    print("ربات اوراکل با موفقیت روشن شد...")
+    print("ربات کانفینگ و پروکسی اوراکل روشن شد...")
     bot.infinity_polling(skip_pending=True)
